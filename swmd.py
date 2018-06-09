@@ -1,6 +1,18 @@
-##################################
-###### Writen by Boyuan Pan ######
-##################################
+"""
+Supervised Word-Mover Distance
+
+Based on Boyuan Pan sWMD, https://github.com/ByronPan/sWMD which itself based on https://github.com/gaohuang/S-WMD
+
+
+Just in case, old MatLab comment on data format:
+
+X is a cell array of all documents, each represented by a dxm matrix where d is the dimensionality of the word embedding and m is the number of unique words in the document
+Y is an array of labels
+BOW_X is a cell array of word counts for each document
+indices is a cell array of global unique IDs for words in a document
+TR is a matrix whose ith row is the ith training split of document indices
+TE is a matrix whose ith row is the ith testing split of document indices
+"""
 
 import sys
 import os
@@ -15,83 +27,83 @@ pwd = os.getcwd()
 
 RAND_SEED = 1
 
+MAX_ITER = 200
+FLOAT_TOL = 1e-3
+
 #pwd = pwd + '/functions'
 #sys.path.append(pwd)
 
 import functions as f
+import tmpfunctions as tmp_f
 
 save_path = 'results/'
 
 dataset = 'bbcsport'
 MAX_DICT_SIZE = 50000
 
-max_iter = 200
-save_frequency = max_iter
-batch = 32
-rangE = 200
-lr_w = 1e+1
-lr_A = 1e+0
-lambdA = 10
+# Optimization parameters
+max_iter = 200  # number of iterations
+save_frequency = max_iter  # frequency of saving results
+batch = 32  # batch size in batch gradient descent (B in the paper)
+N_size = 200  # neighborhood size (N in the paper)
+lr_w = 1e+1  # learning rate for w
+lr_A = 1e+0  # learning rate for A
+lambda_ = 10  # regularisation parameter (lambda in the paper)
 
-cv_folds = 5#5
+
+cv_folds = 2
 results_cv = np.zeros(cv_folds)
 
-for split in range(1,cv_folds+1):
-    #err_v = np.zeros([5,19])
-    #err_t = np.zeros([5,19])
-    sv = 0
+for split in range(1, cv_folds + 1):
+    save_counter = 0
 
-    save_couter = 0
     Err_v = []
     Err_t = []
     w_all = []
     A_all = []
-    [xtr,xte,ytr,yte, BOW_xtr,BOW_xte, indices_tr, indices_te] = f.load_data(dataset, split-1)
-    [idx_tr, idx_val] = f.makesplits(ytr, 1-1.0/cv_folds, 1, 1)
-    
-    
-    xtro = xtr
-    ytro = ytr
-    BOW_xtro = BOW_xtr
-    indices_tro = indices_tr
-    
-    xv = xtr[idx_val]
-    yv = ytr[idx_val]
-    BOW_xv = BOW_xtr[idx_val]
-    indices_v = indices_tr[idx_val]
-    
-    xtr = xtr[idx_tr]
-    ytr = ytr[idx_tr]
-    BOW_xtr = BOW_xtr[idx_tr]
-    indices_tr = indices_tr[idx_tr]
+    [x_trainval, x_test, y_trainval, y_test, BOW_x_trainval, BOW_x_test, indices_trainval, indices_test] = f.load_data(dataset, split - 1)
+    print(x_trainval.shape)
+    [idx_tr, idx_val] = f.makesplits(y_trainval, 1 - 1.0/cv_folds, 1, 0)
+    print(idx_tr)
 
-    ntr = len(ytr)
-    nv = len(yv)
-    nte = len(yte)
-    dim = np.size(xtr[0],0); # dimension of word vector
+    x_val = x_trainval[idx_val]
+    y_val = y_trainval[idx_val]
+    BOW_x_val = BOW_x_trainval[idx_val]
+    indices_val = indices_trainval[idx_val]
 
+    x_train = x_trainval[idx_tr]
+    y_train = y_trainval[idx_tr]
 
-    ########## Compute document center
-    xtr_center = np.zeros([dim, ntr],dtype = np.float)
-    for i in range(0,ntr):
-    	rc= np.dot(xtr[i], BOW_xtr[i].T )/ sum(sum(BOW_xtr[i]))
-    	rc.shape = rc.size
-    	xtr_center[:,i] = rc
-    xv_center = np.zeros([dim, nv],dtype = np.float)
-    for i in range(0,nv):
-    	vc = np.dot(xv[i], BOW_xv[i].T)/ sum(sum(BOW_xv[i]))
-    	vc.shape = vc.size
-    	xv_center[:,i] = vc
-    xte_center = np.zeros([dim, nte],dtype = np.float)
-    for i in range(0,nte):
-    	ec = np.dot(xte[i], BOW_xte[i].T) / sum(sum(BOW_xte[i]))
-    	ec.shape = ec.size
-    	xte_center[:,i] = ec
+    BOW_x_train = BOW_x_trainval[idx_tr]
+    indices_train = indices_trainval[idx_tr]
+
+    # ntr = len(y_train)
+    # nv = len(y_val)
+    # nte = len(y_test)
+    dim = np.size(x_train[0], 0)  # dimension of word vector
+
+    ########## Compute document center (mean word vector of each document)
+    x_train_center = np.zeros([dim, len(y_train)], dtype = np.float)
+    for i in range(0, len(y_train)):
+        centers = np.dot(x_train[i], BOW_x_train[i].T )/ sum(sum(BOW_x_train[i]))
+        centers.shape = centers.size
+        x_train_center[:,i] = centers
+
+    xv_center = np.zeros([dim, len(y_val)], dtype = np.float)
+    for i in range(0, len(y_val)):
+        centers = np.dot(x_val[i], BOW_x_val[i].T)/ sum(sum(BOW_x_val[i]))
+        centers.shape = centers.size
+        xv_center[:,i] = centers
+
+    xte_center = np.zeros([dim, len(y_test)], dtype = np.float)    
+    for i in range(0, len(y_test)):
+        ec = np.dot(x_test[i], BOW_x_test[i].T) / sum(sum(BOW_x_test[i]))
+        ec.shape = ec.size
+        xte_center[:,i] = ec
 
 
-    ########### Load initialize A (train with WCD)
-    dataA = 'metric_init/' + dataset + '_seed' + str(split) + '.mat'
-    bbc_ini = sio.loadmat(dataA)
+    ########### Load initialize A (train with WCD — word centroid distance)
+    bbc_ini = sio.loadmat('metric_init/' + dataset + '_seed' + str(split) + '.mat')
     A = bbc_ini['Ascaled']
 
 
@@ -103,13 +115,22 @@ for split in range(1,cv_folds+1):
 
 
     ########### Main loop
-    for iter in range(1,max_iter+1):
-        print 'Dataset: ' + dataset + ' split: ' + str(split) + ' Iteration: ' + str(iter)
-        [dw, dA] = f.grad_swmd(xtr,ytr,BOW_xtr,indices_tr,xtr_center,w,A,lambdA,batch,rangE)
+    for i in range(1, max_iter+1):
+        print('Dataset: {}, split: {}, iter: {}'.format(dataset, split, i))
+        [dw, dA] = tmp_f.grad_swmd(x_train,
+                               y_train,
+                               BOW_x_train,
+                               indices_train,
+                               x_train_center,
+                               w,
+                               A,
+                               lambda_,
+                               batch,
+                               N_size)
+        print('Gradients are computed')
 
-
-      #  raw_input(np.size(dw))
-     #   raw_input(np.size(w))
+        # raw_input(np.size(dw))
+        # raw_input(np.size(w))
 
         # Update w and A
         w = w - lr_w * dw
@@ -119,28 +140,34 @@ for split in range(1,cv_folds+1):
         w[w>upper_bound] = upper_bound
         A = A - lr_A * dA
 
-        
-
-        if iter == save_frequency: #iter == 1 or iter == 3 or iter == 10 or iter == 50 or iter == 200:
+        if i == save_frequency: #iter == 1 or iter == 3 or iter == 10 or iter == 50 or iter == 200:
             ########### Compute loss
-            filename = save_path + dataset + '_' + str(lambdA) + '_' + str(int(lr_w)) + '_' + str(int(lr_A)) + '_' + str(max_iter) + '_' + str(batch) + '_' + str(rangE) + '_' + str(split) + '.mat'
-            err_v = f.knn_swmd(xtr, ytr, xv, yv, BOW_xtr, BOW_xv, indices_tr, indices_v, w, lambdA, A)    
-            err_t = f.knn_swmd(xtro, ytro, xte, yte, BOW_xtro, BOW_xte, indices_tro, indices_te, w, lambdA, A)
-            sv += 1
-            sio.savemat(filename, {'err_v':err_v, 'err_t':err_t, 'w':w, 'A':A})
+            filename = save_path + dataset + '_' + str(lambda_) + '_' + str(int(lr_w))\
+                       + '_' + str(int(lr_A)) + '_' + str(max_iter) + '_' + str(batch)\
+                       + '_' + str(N_size) + '_' + str(split) + '.mat'
 
-            
+            loss_valid = f.knn_swmd(
+                x_train, y_train, x_val, y_val, BOW_x_train, BOW_x_val, indices_train, indices_val, w, lambda_, A
+            )
+
+            loss_train = f.knn_swmd(
+                x_trainval, y_trainval, x_test, y_test, BOW_x_trainval, BOW_x_test, indices_trainval, indices_test, w, lambda_, A
+            )
+
+            save_counter += 1
+            sio.savemat(filename, {'err_v':loss_valid, 'err_t':loss_train, 'w':w, 'A':A})
+
         del dw, dA
         gc.collect()
-        
-    err_t_cv = err_t[err_v == np.min(err_v)]
+
+    err_t_cv = loss_train[loss_valid == np.min(loss_valid)]
     results_cv[split-1] = err_t_cv[0]
     sio.savemat(save_path + dataset + '_results', {'results_cv':results_cv})
-    
-    
 
 
-    
+
+
+
 
 
 
