@@ -27,9 +27,6 @@ pwd = os.getcwd()
 
 RAND_SEED = 1
 
-MAX_ITER = 200
-FLOAT_TOL = 1e-3
-
 #pwd = pwd + '/functions'
 #sys.path.append(pwd)
 

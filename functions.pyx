@@ -16,6 +16,8 @@ pyximport.install(reload_support=True)
 cimport numpy as np
 cimport cython
 
+MAX_ITER = 200
+FLOAT_TOL = 1e-3
 
 def load_data(dataset, seed):
     if dataset == 'ohsumed' or dataset == 'r83' or dataset == '20ng2' or dataset == '20ng2_500':
