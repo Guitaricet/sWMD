@@ -5,6 +5,7 @@
 import os
 import gc
 import random
+import logging
 import multiprocessing as mul
 
 import numpy as np
@@ -20,6 +21,9 @@ pyximport.install(reload_support=True)
 
 cimport numpy as np
 cimport cython
+
+
+logging.getLogger().setLevel(logging.DEBUG)
 
 
 MAX_ITER = 200
@@ -83,7 +87,6 @@ def makesplits(y, split, splits, classsplit=0, k=1):
         for i in range(0, splits):
             trsplit = []
             tesplit = []
-            print(trsplit)
             while minclass(y, trsplit) < k:
                 for j in range(0,len(un)):
                     ii = np.where(y == un[j])
@@ -128,7 +131,7 @@ def distance(np.ndarray[np.double_t, ndim =2] X, np.ndarray[np.double_t, ndim =2
     d = np.size(x[:,0])
     n = np.size(x[0,:])
     if D != d:
-        print('Both sets of vectors must have same dimensionality!')
+        logging.error('Both sets of vectors must have same dimensionality!')
         os._exit()
     dist = sdist.cdist(X.T, x.T, 'sqeuclidean')
 
@@ -153,8 +156,6 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
     :return: dw, dA - values of gradients
     """
 
-    print('In grad_swmd')
-
     epsilon = 1e-8
 
     dim = np.size(x_train[0], 0)  # dimension of word vector
@@ -171,10 +172,10 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
     tr_loss = 0
     n_nan = 0
 
-    print('Starting batch iteration')
+    logging.debug('Starting batch iteration')
 
     for batch_idx in range(0, batch):
-        print('Batch {}'.format(batch_idx))
+        logging.debug('Batch {}'.format(batch_idx))
 
         doc_idx = sample_doc_idx[batch_idx]
         xi = x_train[doc_idx]
@@ -257,7 +258,7 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
         p_a = p_a + epsilon  # to avoid division by 0
 
         # Compute gradient wrt w and A
-        print('\tComputing w and A gradients for batch')
+        logging.debug('\tComputing w and A gradients for batch')
         dw_ii = np.zeros(np.size(w))
         dA_ii = np.zeros([dim, dim])
 
@@ -278,19 +279,6 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
             dwmd_dwi = bow_i * alpha_all[j] / d_a_sum - bow_i * (np.dot(alpha_all[j].T, d_a_tilde) / d_a_sum)
             dwmd_dwj = bow_j * beta_all[j] / d_b_sum - bow_j * (np.dot(beta_all[j].T, d_b_tilde) / d_b_sum)
 
-            # print('dw_ii: ', dw_ii.shape)
-            # print('dw_ii[0]: ', dw_ii[0].shape)
-            # print('idx_i: ', idx_i)
-            # print('dw_ii[idx_i]: ', dw_ii[idx_i].shape)
-            # print(dw_ii[idx_i])
-            # print('cij: ', cij)
-            # print('dwmd_dwi: ', dwmd_dwi.shape)
-            # print('dwmd_dwi: ', dwmd_dwi)
-            # print('cij * dwmd_dwi', (cij * dwmd_dwi).shape)
-            # value = dw_ii[idx_i] + (cij * dwmd_dwi).squeeze(1)
-            # print('value:', value.shape)
-
-            # TODO: crutch
             dw_ii[idx_i] = dw_ii[idx_i] + (c_ij * dwmd_dwi).squeeze(1)
             dw_ii[ids_j] = dw_ii[ids_j] + (c_ij * dwmd_dwj).squeeze(1)
 
@@ -308,7 +296,7 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
 
     batch = batch - n_nan
     if n_nan > 0:
-        print('number of bad samples: ' + str(n_nan))
+        logging.info('number of bad samples: ' + str(n_nan))
 
     tr_loss = tr_loss / batch
 
@@ -501,7 +489,8 @@ def knn_fall_back(DE, y_train, y_test, ks):
                 uneq = still_voting != 0
                 pe[k,uneq] = vote[uneq]
                 if np.sum(pe[k,:] == 0) != 0:
-                    print("error")
+                    logging.error("unknown error in knn_fall_back")
+                    logging.error("breaking the cycle")
                 break
 
             conf = still_voting - not_sure
@@ -514,7 +503,8 @@ def knn_fall_back(DE, y_train, y_test, ks):
                 uneq = still_voting != 0
                 pe[k,uneq] = vote[uneq]
                 if np.sum(pe[k,:] == 0) != 0:
-                    print("error")
+                    logging.error("unknown error in knn_fall_back")
+                    logging.error("breaking the cycle")
                 break
             kcopy = kcopy - 2
 

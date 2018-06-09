@@ -14,24 +14,22 @@ TR is a matrix whose ith row is the ith training split of document indices
 TE is a matrix whose ith row is the ith testing split of document indices
 """
 
-import sys
 import os
-import scipy.io as sio
-import numpy as np
-import random
 import gc
+import sys
+import random
+import logging
 import pyximport
 #pyximport.install(reload_support=True)
 
-pwd = os.getcwd()
-
-RAND_SEED = 1
-
-#pwd = pwd + '/functions'
-#sys.path.append(pwd)
+import numpy as np
+import scipy.io as sio
 
 import functions as f
-import tmpfunctions as tmp_f
+
+logging.getLogger().setLevel(logging.DEBUG)
+
+RAND_SEED = 1
 
 save_path = 'results/'
 
@@ -59,9 +57,7 @@ for split in range(1, cv_folds + 1):
     w_all = []
     A_all = []
     [x_trainval, x_test, y_trainval, y_test, BOW_x_trainval, BOW_x_test, indices_trainval, indices_test] = f.load_data(dataset, split - 1)
-    print(x_trainval.shape)
     [idx_tr, idx_val] = f.makesplits(y_trainval, 1 - 1.0/cv_folds, 1, 0)
-    print(idx_tr)
 
     x_val = x_trainval[idx_val]
     y_val = y_trainval[idx_val]
@@ -113,8 +109,8 @@ for split in range(1, cv_folds + 1):
 
     ########### Main loop
     for i in range(1, max_iter+1):
-        print('Dataset: {}, split: {}, iter: {}'.format(dataset, split, i))
-        [dw, dA] = tmp_f.grad_swmd(x_train,
+        logging.info('Dataset: {}, split: {}, iter: {}'.format(dataset, split, i))
+        [dw, dA] = f.grad_swmd(x_train,
                                y_train,
                                BOW_x_train,
                                indices_train,
@@ -124,7 +120,7 @@ for split in range(1, cv_folds + 1):
                                lambda_,
                                batch,
                                N_size)
-        print('Gradients are computed')
+        logging.debug('Gradients are computed')
 
         # raw_input(np.size(dw))
         # raw_input(np.size(w))
@@ -160,24 +156,3 @@ for split in range(1, cv_folds + 1):
     err_t_cv = loss_train[loss_valid == np.min(loss_valid)]
     results_cv[split-1] = err_t_cv[0]
     sio.savemat(save_path + dataset + '_results', {'results_cv':results_cv})
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
