@@ -3,21 +3,28 @@
 ##################################
 
 import os
-import scipy.io as sio
-import numpy as np
-import random
-import scipy as sp
 import gc
-from scipy import stats
+import random
 import multiprocessing as mul
+
+import numpy as np
+import scipy as sp
+
+import scipy.io as sio
 import scipy.spatial.distance as sdist
+
+from scipy import stats
+
 import pyximport
 pyximport.install(reload_support=True)
+
 cimport numpy as np
 cimport cython
 
+
 MAX_ITER = 200
 FLOAT_TOL = 1e-3
+
 
 def load_data(dataset, seed):
     if dataset == 'ohsumed' or dataset == 'r83' or dataset == '20ng2' or dataset == '20ng2_500':
@@ -523,23 +530,3 @@ def mink(M,k):
     sortM = sortM[0:k,:]
     idM = idM[0:k,:]
     return sortM, idM
-
-
-
-
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
