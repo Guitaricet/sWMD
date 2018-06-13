@@ -26,7 +26,7 @@ cimport cython
 logging.getLogger().setLevel(logging.DEBUG)
 
 
-MAX_ITER = 200
+MAX_ITER = 200  # for sinkhorn distance
 FLOAT_TOL = 1e-3
 
 
@@ -137,7 +137,7 @@ def distance(np.ndarray[np.double_t, ndim =2] X, np.ndarray[np.double_t, ndim =2
 
     return dist
 
-def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, lambda_, batch, n_neighbours):
+def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, lambda_, batch_size, n_neighbours):
     """
     Computes gradients with respect to A and w
     The formula can be found in https://papers.nips.cc/paper/6139-supervised-word-movers-distance.pdf
@@ -151,7 +151,7 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
     :param w: words weights (learnable)
     :param A: transformation matrix
     :param lambda_: smoothing parameter (entropy regularisation weight) — higher labmda_ closer sinkhorn to WMD
-    :param batch: batch of documents
+    :param batch_size: batch size
     :param n_neighbours: number of nearest neighbours
     :return: dw, dA - values of gradients
     """
@@ -165,7 +165,7 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
     dA = np.zeros([dim, dim])
 
     # Sample documents
-    sample_doc_idx = random.sample(range(n_train), batch)
+    sample_doc_idx = random.sample(range(n_train), batch_size)
 
     # Euclidean distances between document centers
     D_c = distance(np.dot(A, xtr_center), np.dot(A, xtr_center))
@@ -174,7 +174,7 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
 
     logging.debug('Starting batch iteration')
 
-    for batch_idx in range(0, batch):
+    for batch_idx in range(0, batch_size):
         logging.debug('Batch {}'.format(batch_idx))
 
         doc_idx = sample_doc_idx[batch_idx]
@@ -227,7 +227,7 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
         # pool.close()
         # pool.join()
 
-        Di = np.zeros([n_neighbours, 1])  # (squared??) sinkhorn distances (relaxed WMD distances)
+        Di = np.zeros([n_neighbours, 1])  # (squared??) sinkhorn distances - relaxed WMD distances
         for j, res in enumerate(sinkhorn_results):
             # r = res.get()
             r = res
@@ -258,7 +258,7 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
         p_a = p_a + epsilon  # to avoid division by 0
 
         # Compute gradient wrt w and A
-        logging.debug('\tComputing w and A gradients for batch')
+        # logging.debug('\tComputing w and A gradients for batch')
         dw_ii = np.zeros(np.size(w))
         dA_ii = np.zeros([dim, dim])
 
@@ -294,14 +294,14 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
 
     dA = np.dot(A, dA)
 
-    batch = batch - n_nan
+    batch_size = batch_size - n_nan
     if n_nan > 0:
         logging.info('number of bad samples: ' + str(n_nan))
 
-    tr_loss = tr_loss / batch
+    tr_loss = tr_loss / batch_size
 
-    dw = dw / batch
-    dA = dA / batch
+    dw = dw / batch_size
+    dA = dA / batch_size
 
     del D_c, xi, yj, Di, d_a_tilde, d_b_tilde, dw_ii, dA_ii, dwmd_dwi, dwmd_dwj
     gc.collect()
@@ -309,7 +309,15 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
     return dw, dA
 
 
-def sinkhorn2(int i, int j,  np.ndarray[np.double_t, ndim =2] A, np.ndarray[np.double_t, ndim =2] xi,  np.ndarray[np.double_t, ndim =2] xj, np.ndarray[np.double_t, ndim =2] a,  np.ndarray[np.double_t, ndim =2] b, int lambdA, int max_iter, float tol):
+def sinkhorn2(int i, int j,
+              np.ndarray[np.double_t, ndim =2] A,
+              np.ndarray[np.double_t, ndim =2] xi,
+              np.ndarray[np.double_t, ndim =2] xj,
+              np.ndarray[np.double_t, ndim =2] a,
+              np.ndarray[np.double_t, ndim =2] b,
+              int lambdA,
+              int max_iter,
+              float tol):
     # https://arxiv.org/pdf/1306.0895.pdf
 
     cdef float epsilon, change, obj_primal
@@ -319,12 +327,12 @@ def sinkhorn2(int i, int j,  np.ndarray[np.double_t, ndim =2] A, np.ndarray[np.d
 
     epsilon = 1e-10
 
-    M = distance(np.dot(A,xi), np.dot(A,xj))
+    M = distance(np.dot(A, xi), np.dot(A, xj))
     M[M<0] = 0
     
     l = len(a)
     K = np.exp(-lambdA * M)
-    Kt = K/a
+    Kt = K / a
     u = np.ones([l,1]) /l
     iteR = 0
     change = np.inf
@@ -332,22 +340,22 @@ def sinkhorn2(int i, int j,  np.ndarray[np.double_t, ndim =2] A, np.ndarray[np.d
     while change > tol and iteR <= max_iter:
         iteR = iteR + 1
         u0 = u
-        u = 1.0/(np.dot(Kt,(b/(np.dot(K.T,u)))))
-
+        # sinkhorn distance formula:
+        u = 1.0 / (np.dot(Kt, (b / (np.dot(K.T, u)))))
         change = np.linalg.norm(u - u0) / np.linalg.norm(u)
 
     if min(u) <= 0:
         u = u - min(u) + epsilon
 
-    v = b/(np.dot(K.T,u))
+    v = b / (np.dot(K.T, u))
 
     if min(v) <= 0:
         v = v - min(v) + epsilon
 
     alpha = np.log(u)
-    alpha = 1.0/lambdA * (alpha - np.mean(alpha))
+    alpha = 1.0 / lambdA * (alpha - np.mean(alpha))
     beta = np.log(v)
-    beta = 1.0/lambdA * (beta - np.mean(beta))
+    beta = 1.0 / lambdA * (beta - np.mean(beta))
     #v.shape = (np.size(v),)
     z = v.T[0]
     T = z * (K * u)
@@ -377,7 +385,7 @@ def sinkhorn3(int i, int j,
 
     epsilon = 1e-10
 
-    M = distance(np.dot(A,xi), np.dot(A,xj))
+    M = distance(np.dot(A, xi), np.dot(A, xj))
     M[M<0] = 0
     
     l = len(a)
@@ -407,46 +415,49 @@ def sinkhorn3(int i, int j,
     alpha = 1.0 / lambdA * (alpha - np.mean(alpha))
     beta = np.log(v)
     beta = 1.0 / lambdA * (beta - np.mean(beta))
-    #v.shape = (np.size(v),)
+    # v.shape = (np.size(v),)
     z = v.T[0]
     T = z * (K * u)
     obj_primal = np.sum(T*M) # sum(sum(T*M))
-  #  obj_dual = a * alpha + b * beta
+    # obj_dual = a * alpha + b * beta
 
     return alpha, beta, T, obj_primal, xi, xj, a, b
 
 
-def knn_swmd(x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indices_train, indices_test, w, lambda_, A):
+def knn_swmd(x_train, y_train, x_test, y_test, bow_x_train, bow_x_test, indices_train, indices_test, w, lambda_, A):
+    """
+    :param A, w: model parameters
+    :param lambda_: WMD relaxation parameter
+    """
     n_train = len(y_train)
     n_test = len(y_test)
 
-    WMD = np.zeros([n_train, n_test])
+    wmd_dist = np.zeros([n_train, n_test])
 
     # TODO: fix multiprocessing
     # pool = mul.Pool(processes = 6)
     result = []
 
-    for i in range(0,n_train):
-        
+    for i in range(0, n_train):
+
         Wi = np.zeros(n_test)
         xi = x_train[i]
-        bow_i = BOW_x_train[i]
-        bow_i.shape = [np.size(bow_i),1]
+        bow_i = bow_x_train[i]
+        bow_i.shape = [np.size(bow_i), 1]
         a = bow_i * w[indices_train[i]][0]
         a = a / sum(a)
-        
 
-        for j in range(0,n_test):
+        for j in range(0, n_test):
             xj = x_test[j]
-            bow_j = BOW_x_test[j]
-            bow_j.shape = [np.size(bow_j),1]
+            bow_j = bow_x_test[j]
+            bow_j.shape = [np.size(bow_j), 1]
             b = bow_j * w[indices_test[j]][0]
             b = b / sum(b)
-            b.shape = (np.size(b),1)
+            b.shape = (np.size(b), 1)
 
             # result.append(pool.apply_async(sinkhorn2, (i, j, A, xi, xj, a, b, lambda_, 200, 1e-3)))
 
-            # WARNING! sinkhorn2 and sinkhorn3 have different number of return parameters
+            # WARNING! sinkhorn2 and sinkhorn3 have different sets of return parameters
             result.append(sinkhorn2(i, j, A, xi, xj, a, b, lambda_, 200, 1e-3))
             # print("n_train {} n_test {} is finished".format(i, j))
 
@@ -457,38 +468,39 @@ def knn_swmd(x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indices_
     for res in result:
         # r = res.get()
         r = res
-        i = n / n_test
-        j = np.mod(n,n_test)
-        WMD[i,j] = r[3]
-        n+=1
+        i = n // n_test
+        j = np.mod(n, n_test)
+        wmd_dist[i, j] = r[3]
+        n += 1
 
-    err = knn_fall_back(WMD, y_train, y_test, range(1,20))
+    err = knn_fall_back(wmd_dist, y_train, y_test, range(1, 20))
 
-    del WMD
+    del wmd_dist
     gc.collect()
 
     return err
 
+
 def knn_fall_back(DE, y_train, y_test, ks):
-    [n,ne] = [np.size(DE,0), np.size(DE,1)]
-    [dists, ix] = mink(DE,ks[-1])
+    [n, ne] = [np.size(DE, 0), np.size(DE, 1)]
+    [dists, ix] = mink(DE, ks[-1])
 
-    pe = np.zeros([len(ks),ne])
+    pe = np.zeros([len(ks), ne])
 
-    for k in range(0,len(ks)):
+    for k in range(0, len(ks)):
         still_voting = np.ones(ne)
         kcopy = ks[k]
         while 1:
-            sam = y_train[ix[0:kcopy,:]]
-            [vote,count]= stats.mode(sam)
+            sam = y_train[ix[0:kcopy, :]]
+            [vote, count] = stats.mode(sam)
             vote = vote[0]
             count = count[0]
 
-            not_sure = count < kcopy/2
+            not_sure = count < kcopy / 2
             if np.sum(still_voting * not_sure) == 0:
                 uneq = still_voting != 0
-                pe[k,uneq] = vote[uneq]
-                if np.sum(pe[k,:] == 0) != 0:
+                pe[k, uneq] = vote[uneq]
+                if np.sum(pe[k, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
                     logging.error("breaking the cycle")
                 break
@@ -496,25 +508,26 @@ def knn_fall_back(DE, y_train, y_test, ks):
             conf = still_voting - not_sure
             conf = conf == 1
 
-            pe[k,conf] = vote[conf]
+            pe[k, conf] = vote[conf]
 
             still_voting = still_voting * not_sure
             if kcopy == 1:
                 uneq = still_voting != 0
-                pe[k,uneq] = vote[uneq]
-                if np.sum(pe[k,:] == 0) != 0:
+                pe[k, uneq] = vote[uneq]
+                if np.sum(pe[k, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
                     logging.error("breaking the cycle")
                 break
             kcopy = kcopy - 2
 
     err = np.ones(len(ks))
-    for k in range(0,len(ks)):
-        err[k] = np.mean(pe[k,:] != y_test)
+    for k in range(0, len(ks)):
+        err[k] = np.mean(pe[k, :] != y_test)
 
     return err
 
-def mink(M,k):
+
+def mink(M, k):
     sortM = np.sort(M,0)
     idM = np.argsort(M,0)
     sortM = sortM[0:k,:]
