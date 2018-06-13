@@ -52,7 +52,7 @@ W_MIN = 0.01
 W_MAX = 10
 
 
-def evaluate_wmd(x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indices_train, indices_test, A):
+def evaluate_wmd(x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indices_train, indices_test, embed_dim):
     """
     Standard (non-supervised) WMD as a baseline
     """
@@ -61,8 +61,7 @@ def evaluate_wmd(x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indi
     logging.info('KNN test')
 
     w_baseline = np.ones([MAX_DICT_SIZE, 1])
-    logging.info('A matrix shape: %s' % str(A.shape))
-    A_baseline = np.identity(A.shape)
+    A_baseline = np.identity(embed_dim)
 
     loss_test = f.knn_swmd(x_train,
                            y_train,
@@ -133,7 +132,8 @@ if __name__ == '__main__':
         bbc_ini = sio.loadmat('metric_init/' + dataset + '_seed' + str(split) + '.mat')
         A = bbc_ini['Ascaled']
 
-        evaluate_wmd(x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indices_train, indices_test, A)
+        # 300 for embed dim, embeddings loaded from .mat file
+        evaluate_wmd(x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indices_train, indices_test, 300)
 
         # Define optimization parameters
         w = np.ones([MAX_DICT_SIZE, 1])
