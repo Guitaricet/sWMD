@@ -473,7 +473,7 @@ def knn_swmd(x_train, y_train, x_test, y_test, bow_x_train, bow_x_test, indices_
         wmd_dist[i, j] = r[3]
         n += 1
 
-    err = knn_fall_back(wmd_dist, y_train, y_test, range(1, 20))
+    err = knn_fall_back(wmd_dist, y_train, y_test, range(1, 20, 2))
 
     del wmd_dist
     gc.collect()
@@ -481,15 +481,18 @@ def knn_swmd(x_train, y_train, x_test, y_test, bow_x_train, bow_x_test, indices_
     return err
 
 
-def knn_fall_back(DE, y_train, y_test, ks):
+def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
+    """
+    Computes KNN error
+    """
     [n, ne] = [np.size(DE, 0), np.size(DE, 1)]
-    [dists, ix] = mink(DE, ks[-1])
+    [dists, ix] = mink(DE, k_neighbors_list[-1])
 
-    pe = np.zeros([len(ks), ne])
+    pe = np.zeros([len(k_neighbors_list), ne])
 
-    for k in range(0, len(ks)):
+    for k in range(0, len(k_neighbors_list)):
         still_voting = np.ones(ne)
-        kcopy = ks[k]
+        kcopy = k_neighbors_list[k]
         while 1:
             sam = y_train[ix[0:kcopy, :]]
             [vote, count] = stats.mode(sam)
@@ -502,7 +505,6 @@ def knn_fall_back(DE, y_train, y_test, ks):
                 pe[k, uneq] = vote[uneq]
                 if np.sum(pe[k, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
-                    logging.error("breaking the cycle")
                 break
 
             conf = still_voting - not_sure
@@ -516,12 +518,11 @@ def knn_fall_back(DE, y_train, y_test, ks):
                 pe[k, uneq] = vote[uneq]
                 if np.sum(pe[k, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
-                    logging.error("breaking the cycle")
                 break
             kcopy = kcopy - 2
 
-    err = np.ones(len(ks))
-    for k in range(0, len(ks)):
+    err = np.ones(len(k_neighbors_list))
+    for k in range(0, len(k_neighbors_list)):
         err[k] = np.mean(pe[k, :] != y_test)
 
     return err

@@ -37,7 +37,7 @@ dataset = 'bbcsport'
 MAX_DICT_SIZE = 50000
 
 # Optimization parameters
-MAX_ITER = 1#00  # number of iterations
+MAX_ITER = 100  # number of iterations
 SAVE_FREQ = MAX_ITER  # frequency of saving results
 BATCH_SIZE = 32  # batch size in batch gradient descent (B in the paper)
 N_NEIGHBORS = 200  # neighborhood size (N in the paper)
@@ -130,28 +130,38 @@ if __name__ == '__main__':
 
             A -= LR_A * dA
 
-            if i == SAVE_FREQ or i == 1 or i == 3 or i == 10 or i == 50 or i == 200:
+            if i % SAVE_FREQ == 0 or i == 1 or i == 3 or i == 10 or i == 50 or i == 200:
                 # Compute loss
                 filename = save_path + dataset + '_' + str(LAMBDA_) + '_' + str(int(LR_W)) \
                            + '_' + str(int(LR_A)) + '_' + str(MAX_ITER) + '_' + str(BATCH_SIZE) \
                            + '_' + str(N_NEIGHBORS) + '_' + str(split) + '.mat'
+
+                logging.info('KNN train')
+                loss_train = f.knn_swmd(
+                    x_train, y_train, x_train, y_train, BOW_x_train, BOW_x_train, indices_train, indices_train, w, LAMBDA_, A
+                )
+                logging.info('Train knn err: %s' % loss_train)
 
                 logging.info('KNN valid')
                 loss_valid = f.knn_swmd(
                     x_train, y_train, x_val, y_val, BOW_x_train, BOW_x_val, indices_train, indices_val, w, LAMBDA_, A
                 )
 
-                logging.info('KNN test')
-                loss_train = f.knn_swmd(
-                    x_trainval, y_trainval, x_test, y_test, BOW_x_trainval, BOW_x_test, indices_trainval, indices_test, w, LAMBDA_, A
-                )
-
+                logging.info('Valid knn err: %s' % loss_valid)
                 save_counter += 1
                 sio.savemat(filename, {'err_v': loss_valid, 'err_t': loss_train, 'w': w, 'A': A})
 
             del dw, dA
             gc.collect()
 
+        logging.info('KNN test')
+        loss_test = f.knn_swmd(
+            x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_val, indices_train, indices_val, w, LAMBDA_, A
+        )
+        logging.info('Test knn err: %s' % loss_test)
+
         err_t_cv = loss_train[loss_valid == np.min(loss_valid)]
         results_cv[split-1] = err_t_cv[0]
         sio.savemat(save_path + dataset + '_results', {'results_cv': results_cv})
+
+    logging.error('Cross-validation error: %s' % np.mean(results_cv))
