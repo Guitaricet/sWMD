@@ -1,6 +1,8 @@
-##################################
-###### Writen by Boyuan Pan ######
-##################################
+"""
+Functions for data processing, gradient and distances computation
+
+More pythonic version of Boyuan Pan sWMD, https://github.com/ByronPan/sWMD
+"""
 
 import os
 import gc
@@ -299,6 +301,7 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
     batch_size = batch_size - n_nan
     if n_nan > 0:
         logging.info('number of bad samples: ' + str(n_nan))
+        assert n_nan < batch_size, 'every gradient in the batch is NaN'
 
     tr_loss = tr_loss / batch_size
 
@@ -475,7 +478,7 @@ def knn_swmd(x_train, y_train, x_test, y_test, bow_x_train, bow_x_test, indices_
         wmd_dist[i, j] = r[3]
         n += 1
 
-    err = knn_fall_back(wmd_dist, y_train, y_test, range(1, 20, 2))
+    err = knn_fall_back(wmd_dist, y_train, y_test, [5])
 
     del wmd_dist
     gc.collect()
@@ -485,7 +488,7 @@ def knn_swmd(x_train, y_train, x_test, y_test, bow_x_train, bow_x_test, indices_
 
 def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
     """
-    Computes KNN error
+    Computes KNN error rate
     """
     [n, ne] = [np.size(DE, 0), np.size(DE, 1)]
     [dists, ix] = mink(DE, k_neighbors_list[-1])

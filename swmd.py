@@ -23,6 +23,7 @@ import pyximport
 #pyximport.install(reload_support=True)
 
 import numpy as np
+import pandas as pd
 import scipy.io as sio
 
 import functions as f
@@ -40,7 +41,7 @@ MAX_DICT_SIZE = 50000
 
 # Optimization parameters
 MAX_ITER = 100  # number of iterations
-SAVE_FREQ = MAX_ITER  # frequency of saving results
+SAVE_FREQ = 10  # frequency of results saving
 BATCH_SIZE = 32  # batch size in batch gradient descent (B in the paper)
 N_NEIGHBORS = 200  # neighborhood size (N in the paper)
 LR_W = 1e+1  # learning rate for w
@@ -51,9 +52,40 @@ W_MIN = 0.01
 W_MAX = 10
 
 
+def evaluate_wmd(x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indices_train, indices_test, A):
+    """
+    Standard (non-supervised) WMD as a baseline
+    """
+
+    logging.info('baseline WMD evaluation')
+    logging.info('KNN test')
+
+    w_baseline = np.ones([MAX_DICT_SIZE, 1])
+    logging.info('A matrix shape: %s' % str(A.shape))
+    A_baseline = np.identity(A.shape)
+
+    loss_test = f.knn_swmd(x_train,
+                           y_train,
+                           x_test,
+                           y_test,
+                           BOW_x_train,
+                           BOW_x_test,
+                           indices_train,
+                           indices_test,
+                           w_baseline,
+                           LAMBDA_,
+                           A_baseline)
+    
+    logging.info('Test error per class: %s' % loss_test)
+    logging.info('Test mean error:      %s' % np.mean(loss_test))
+
+    return loss_test
+
+
 if __name__ == '__main__':
 
     results_cv = np.zeros(CV_FOLDS)
+    results_df = []
 
     for split in range(1, CV_FOLDS + 1):
         save_counter = 0
@@ -85,21 +117,23 @@ if __name__ == '__main__':
             centers.shape = centers.size
             x_train_center[:, i] = centers
 
-        xv_center = np.zeros([dim, len(y_val)], dtype=np.float)
+        x_valid_center = np.zeros([dim, len(y_val)], dtype=np.float)
         for i in range(0, len(y_val)):
             centers = np.dot(x_val[i], BOW_x_val[i].T)/ sum(sum(BOW_x_val[i]))
             centers.shape = centers.size
-            xv_center[:, i] = centers
+            x_valid_center[:, i] = centers
 
-        xte_center = np.zeros([dim, len(y_test)], dtype=np.float)
+        x_test_center = np.zeros([dim, len(y_test)], dtype=np.float)
         for i in range(0, len(y_test)):
             ec = np.dot(x_test[i], BOW_x_test[i].T) / sum(sum(BOW_x_test[i]))
             ec.shape = ec.size
-            xte_center[:, i] = ec
+            x_test_center[:, i] = ec
 
         # Load initialize A (train with WCD — word centroid distance)
         bbc_ini = sio.loadmat('metric_init/' + dataset + '_seed' + str(split) + '.mat')
         A = bbc_ini['Ascaled']
+
+        evaluate_wmd(x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indices_train, indices_test, A)
 
         # Define optimization parameters
         w = np.ones([MAX_DICT_SIZE, 1])
@@ -132,11 +166,11 @@ if __name__ == '__main__':
 
             A -= LR_A * dA
 
-            if i % SAVE_FREQ == 0 or i == 1 or i == 3 or i == 10 or i == 50 or i == 200:
+            if i % SAVE_FREQ == 0:
                 # Compute loss
                 filename = save_path + dataset + '_' + str(LAMBDA_) + '_' + str(int(LR_W)) \
                            + '_' + str(int(LR_A)) + '_' + str(MAX_ITER) + '_' + str(BATCH_SIZE) \
-                           + '_' + str(N_NEIGHBORS) + '_' + str(split) + '.mat'
+                           + '_' + str(N_NEIGHBORS) + '_' + str(split)
 
                 logging.info('KNN train')
                 loss_train = f.knn_swmd(
@@ -151,14 +185,18 @@ if __name__ == '__main__':
 
                 logging.info('Valid knn err: %s' % loss_valid)
                 save_counter += 1
-                sio.savemat(filename, {'err_v': loss_valid, 'err_t': loss_train, 'w': w, 'A': A})
+
+                sio.savemat(filename + '.mat', {'err_v': loss_valid, 'err_t': loss_train, 'w': w, 'A': A})
+
+                results_df.append({'cv_split': split, 'step': i, 'err_train': np.mean(loss_train), 'err_valid': np.mean(loss_valid)})
+                pd.DataFrame(results_df).to_csv(filename + '.csv')
 
             del dw, dA
             gc.collect()
 
         logging.info('KNN test')
         loss_test = f.knn_swmd(
-            x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_val, indices_train, indices_val, w, LAMBDA_, A
+            x_train, y_train, x_test, y_test, BOW_x_train, BOW_x_test, indices_train, indices_test, w, LAMBDA_, A
         )
         logging.info('Test knn err: %s' % loss_test)
 
