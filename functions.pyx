@@ -23,8 +23,9 @@ cimport numpy as np
 cimport cython
 
 
-logging.getLogger().setLevel(logging.DEBUG)
-
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                    datefmt='%m-%d %H:%M')
 
 MAX_ITER = 200  # for sinkhorn distance
 FLOAT_TOL = 1e-3
@@ -175,7 +176,8 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
     logging.debug('Starting batch iteration')
 
     for batch_idx in range(0, batch_size):
-        logging.debug('Batch {}'.format(batch_idx))
+        if batch_idx % 10 == 0:
+            logging.debug('Batch {}'.format(batch_idx))
 
         doc_idx = sample_doc_idx[batch_idx]
         xi = x_train[doc_idx]

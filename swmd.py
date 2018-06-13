@@ -27,7 +27,9 @@ import scipy.io as sio
 
 import functions as f
 
-logging.getLogger().setLevel(logging.DEBUG)
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                    datefmt='%m-%d %H:%M')
 
 RAND_SEED = 1
 
