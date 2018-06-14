@@ -3,6 +3,7 @@ Functions for data processing, gradient and distances computation
 
 More pythonic version of Boyuan Pan sWMD, https://github.com/ByronPan/sWMD
 """
+# TODO: rename all a and b variables
 
 import os
 import gc
@@ -142,21 +143,21 @@ def distance(np.ndarray[np.double_t, ndim =2] X, np.ndarray[np.double_t, ndim =2
 
 def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, lambda_, batch_size, n_neighbours):
     """
-    Computes gradients with respect to A and w
+    Computes gradients with respect to A and w for one random batch
     The formula can be found in https://papers.nips.cc/paper/6139-supervised-word-movers-distance.pdf
     (formula 8 and 10, page 4)
 
     :param x_train: matrix of documents (embed_dim x doc_idx x n_words)
     :param y_train: list of classes of documents
     :param bow_x_train: bag-of-words text representations (d in the paper)
-    :param indices_train:
+    :param indices_train: indices of words in the text for each text (mostly used for sparce matrix summation)
     :param xtr_center:
     :param w: words weights (learnable)
     :param A: transformation matrix
     :param lambda_: smoothing parameter (entropy regularisation weight) — higher labmda_ closer sinkhorn to WMD
     :param batch_size: batch size
     :param n_neighbours: number of nearest neighbours
-    :return: dw, dA - values of gradients
+    :return: dw, dA - values of gradients, mean gradient for the batch
     """
 
     epsilon = 1e-8
@@ -184,11 +185,11 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
         doc_idx = sample_doc_idx[batch_idx]
         xi = x_train[doc_idx]
         yi = y_train[doc_idx]
-        idx_i = indices_train[doc_idx]
-        idx_i.shape = idx_i.size
+        ids_i = indices_train[doc_idx]
+        ids_i.shape = ids_i.size
         bow_i = bow_x_train[doc_idx]
         bow_i.shape = (np.size(bow_i), 1)
-        d_a_tilde = bow_i * w[idx_i]
+        d_a_tilde = bow_i * w[ids_i]
         d_a_tilde = d_a_tilde / sum(d_a_tilde)  # 'our' document, weighted words, normalized
 
         neighbors_ids = np.argsort(D_c[:, doc_idx])  # sort by the order of the distance to the 'i' document
@@ -276,14 +277,14 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
             bow_j = bow_x_train_nn[j]
             d_b_tilde = bow_j * w[ids_j]  # there was a transposition, but it should not be here (I suppose)
             d_b_tilde = d_b_tilde / sum(d_b_tilde)
-            d_a_sum = sum(w[idx_i] * bow_i)
+            d_a_sum = sum(w[ids_i] * bow_i)
             d_b_sum = sum(w[ids_j] * bow_j)
 
             # dD_Aw / dw:
             dwmd_dwi = bow_i * alpha_all[j] / d_a_sum - bow_i * (np.dot(alpha_all[j].T, d_a_tilde) / d_a_sum)
             dwmd_dwj = bow_j * beta_all[j] / d_b_sum - bow_j * (np.dot(beta_all[j].T, d_b_tilde) / d_b_sum)
 
-            dw_ii[idx_i] = dw_ii[idx_i] + (c_ij * dwmd_dwi).squeeze(1)
+            dw_ii[ids_i] = dw_ii[ids_i] + (c_ij * dwmd_dwi).squeeze(1)
             dw_ii[ids_j] = dw_ii[ids_j] + (c_ij * dwmd_dwj).squeeze(1)
 
             dA_ii = dA_ii + c_ij * dD_dA_all[j]
@@ -429,13 +430,17 @@ def sinkhorn3(int i, int j,
     return alpha, beta, T, obj_primal, xi, xj, a, b
 
 
-def knn_swmd(x_train, y_train, x_test, y_test, bow_x_train, bow_x_test, indices_train, indices_test, w, lambda_, A):
+def knn_swmd(dataloader_train, dataloader_test, w, lambda_, A):
     """
+    Computes KNN
+    Not time and memory efficient, because computes full distance matrix
+
     :param A, w: model parameters
     :param lambda_: WMD relaxation parameter
+    :return: KNN error rate
     """
-    n_train = len(y_train)
-    n_test = len(y_test)
+    n_train = len(dataloader_train)
+    n_test = len(dataloader_test)
 
     wmd_dist = np.zeros([n_train, n_test])
 
@@ -446,24 +451,23 @@ def knn_swmd(x_train, y_train, x_test, y_test, bow_x_train, bow_x_test, indices_
     for i in range(0, n_train):
 
         Wi = np.zeros(n_test)
-        xi = x_train[i]
-        bow_i = bow_x_train[i]
+        x_i, bow_i, indices_train_i = dataloader_train[i]
+
         bow_i.shape = [np.size(bow_i), 1]
-        a = bow_i * w[indices_train[i]][0]
-        a = a / sum(a)
+        d_a = bow_i * w[indices_train_i][0]
+        d_a = d_a / sum(d_a)
 
         for j in range(0, n_test):
-            xj = x_test[j]
-            bow_j = bow_x_test[j]
+            x_j, bow_j, indices_test_j = dataloader_test[j]
             bow_j.shape = [np.size(bow_j), 1]
-            b = bow_j * w[indices_test[j]][0]
-            b = b / sum(b)
-            b.shape = (np.size(b), 1)
+            d_b = bow_j * w[indices_test_j][0]
+            d_b = d_b / sum(d_b)
+            d_b.shape = (np.size(d_b), 1)
 
-            # result.append(pool.apply_async(sinkhorn2, (i, j, A, xi, xj, a, b, lambda_, 200, 1e-3)))
+            # result.append(pool.apply_async(sinkhorn2, (i, j, A, x_i, x_j, a, b, lambda_, 200, 1e-3)))
 
             # WARNING! sinkhorn2 and sinkhorn3 have different sets of return parameters
-            result.append(sinkhorn2(i, j, A, xi, xj, a, b, lambda_, 200, 1e-3))
+            result.append(sinkhorn2(i, j, A, x_i, x_j, d_a, d_b, lambda_, 200, 1e-3))
             # print("n_train {} n_test {} is finished".format(i, j))
 
     # pool.close()
@@ -478,7 +482,7 @@ def knn_swmd(x_train, y_train, x_test, y_test, bow_x_train, bow_x_test, indices_
         wmd_dist[i, j] = r[3]
         n += 1
 
-    err = knn_fall_back(wmd_dist, y_train, y_test, [5])
+    err = knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, [5])
 
     del wmd_dist
     gc.collect()
