@@ -353,9 +353,9 @@ def knn_swmd(dataloader_train, dataloader_test, w, lambda_, A):
         x_i, bow_i, indices_train_i, _ = dataloader_train[i]
 
         bow_i.shape = [np.size(bow_i), 1]
-        logging.debug('w.shape: %s' % w.shape)
-        logging.debug('indices_train_i.shape: %s' % indices_train_i.shape)
-        logging.debug('w[indices_train_i][0]: %s' % w[indices_train_i][0])
+        logging.debug('w.shape: %s' % str(w.shape))
+        logging.debug('indices_train_i.shape: %s' % str(indices_train_i.shape))
+        logging.debug('w[indices_train_i][0]: %s' % str(w[indices_train_i][0]))
         d_a = bow_i * w[indices_train_i]
         d_a = d_a / sum(d_a)
 
