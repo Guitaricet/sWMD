@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 
-from nltk.tokenize import word_tokenize
 from gensim.models.fasttext import FastText
 from pymystem3 import Mystem
 

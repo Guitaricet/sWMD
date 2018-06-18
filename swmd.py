@@ -102,8 +102,8 @@ if __name__ == '__main__':
 
         logging.info('Loading datasets...')
         dataloader_train = DataLoader(DATAPATH_TRAIN, embeddings, BATCH_SIZE)
-        # dataloader_val = DataLoader(DATAPATH_VAL, embeddings, BATCH_SIZE)
-        # dataloader_test = DataLoader(DATAPATH_TEST, embeddings, BATCH_SIZE)
+        dataloader_val = DataLoader(DATAPATH_VAL, embeddings, BATCH_SIZE)
+        dataloader_test = DataLoader(DATAPATH_TEST, embeddings, BATCH_SIZE)
         logging.info('Datasets are loaded')
 
         if BASELINE:
