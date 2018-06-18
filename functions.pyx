@@ -12,9 +12,7 @@ import logging
 import multiprocessing as mul
 
 import numpy as np
-import scipy as sp
 
-import scipy.io as sio
 import scipy.spatial.distance as sdist
 
 from scipy import stats
@@ -25,15 +23,14 @@ pyximport.install(reload_support=True)
 cimport numpy as np
 cimport cython
 
+import cfg
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 
 
-MAX_ITER = 200  # for sinkhorn distance
-FLOAT_TOL = 1e-3
-EPSILON = 1e-8
+EPS = 1e-10
 
 
 def distance(np.ndarray[np.double_t, ndim =2] X, np.ndarray[np.double_t, ndim =2] x):
@@ -55,7 +52,7 @@ def distance(np.ndarray[np.double_t, ndim =2] X, np.ndarray[np.double_t, ndim =2
     return dist
 
 
-def grad_swmd(dataloader, document_centers, w, A, lambda_, batch_size, n_neighbours):
+def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
     """
     Computes gradients with respect to A and w for one random batch
     The formula can be found in https://papers.nips.cc/paper/6139-supervised-word-movers-distance.pdf
@@ -69,7 +66,6 @@ def grad_swmd(dataloader, document_centers, w, A, lambda_, batch_size, n_neighbo
     :param document_centers: mean word vectors for each (train) document in A-transformed space
     :param w: words weights
     :param A: transformation matrix
-    :param lambda_: smoothing parameter (entropy regularisation weight) — higher labmda_ closer sinkhorn to WMD
     :param batch_size: batch size
     :param n_neighbours: number of nearest neighbours
     :return: dw, dA - values of gradients, mean gradient for the batch
@@ -126,12 +122,10 @@ def grad_swmd(dataloader, document_centers, w, A, lambda_, batch_size, n_neighbo
             d_b_tilde = bow_j * w[ids_j]
             d_b_tilde = d_b_tilde / sum(d_b_tilde)  # 'other' document, weighted words, normalized
 
-            # RES.append(pool.apply_async(sinkhorn3, (ii, j, A, xi, xj, a, b, lambda_, 200, 1e-3)))
+            # RES.append(pool.apply_async(sinkhorn3, (ii, j, A, xi, xj, a, b)))
 
             # WARNING: sinkhorn2 and sinkhorn3 have different sets of return parameters
-            sinkhorn_results.append(
-                sinkhorn3(A, xi, xj, d_a_tilde, d_b_tilde, lambda_, MAX_ITER, FLOAT_TOL)
-            )
+            sinkhorn_results.append(sinkhorn3(A, xi, xj, d_a_tilde, d_b_tilde))
 
         # pool.close()
         # pool.join()
@@ -160,11 +154,11 @@ def grad_swmd(dataloader, document_centers, w, A, lambda_, batch_size, n_neighbo
         # Compute NCA probabilities
         Di[Di < 0] = 0
         dmin = min(Di) # WTF: why use dmin?
-        p_i = np.exp(-Di + dmin) + EPSILON  # WTF: why eps in the nominator?
+        p_i = np.exp(-Di + dmin) + EPS  # WTF: why eps in the nominator?
         p_i = p_i / sum(p_i)
         y_mask = [y_nn == yi for _, _, _, y_nn in neighbors]  # all neighbors with the same class as d_a
         p_a = sum(p_i[y_mask])  # probability for document d_a
-        p_a = p_a + EPSILON  # to avoid division by 0
+        p_a = p_a + EPS  # to avoid division by 0
 
         # Compute gradient wrt w and A
         # logging.debug('\tComputing w and A gradients for batch')
@@ -221,29 +215,25 @@ def sinkhorn2(np.ndarray[np.double_t, ndim =2] A,
               np.ndarray[np.double_t, ndim =2] xi,
               np.ndarray[np.double_t, ndim =2] xj,
               np.ndarray[np.double_t, ndim =2] a,
-              np.ndarray[np.double_t, ndim =2] b,
-              int lambdA,
-              int max_iter,
-              float tol):
+              np.ndarray[np.double_t, ndim =2] b):
     # https://arxiv.org/pdf/1306.0895.pdf
 
-    cdef float epsilon, change, obj_primal
+    cdef float change, obj_primal
     cdef np.ndarray[np.double_t, ndim =2] M, K, Kt, u, u0, v, alpha, beta, T
     cdef np.ndarray[np.double_t, ndim =1] z
     cdef int l, iteR
 
-    epsilon = 1e-10
     M = distance(np.dot(A, xi.T), np.dot(A, xj.T))
     M[M<0] = 0
     
     l = len(a)
-    K = np.exp(-lambdA * M)
+    K = np.exp(-cfg.sinkhorn.labmda_ * M)
     Kt = K / a
     u = np.ones([l,1]) /l
     iteR = 0
     change = np.inf
 
-    while change > tol and iteR <= max_iter:
+    while change > cfg.sinkhorn.float_tol and iteR <= cfg.sinkhorn.max_iter:
         iteR = iteR + 1
         u0 = u
         # sinkhorn distance formula:
@@ -251,17 +241,17 @@ def sinkhorn2(np.ndarray[np.double_t, ndim =2] A,
         change = np.linalg.norm(u - u0) / np.linalg.norm(u)
 
     if min(u) <= 0:
-        u = u - min(u) + epsilon
+        u = u - min(u) + EPS
 
     v = b / (np.dot(K.T, u))
 
     if min(v) <= 0:
-        v = v - min(v) + epsilon
+        v = v - min(v) + EPS
 
     alpha = np.log(u)
-    alpha = 1.0 / lambdA * (alpha - np.mean(alpha))
+    alpha = 1.0 / cfg.sinkhorn.labmda_ * (alpha - np.mean(alpha))
     beta = np.log(v)
-    beta = 1.0 / lambdA * (beta - np.mean(beta))
+    beta = 1.0 / cfg.sinkhorn.labmda_ * (beta - np.mean(beta))
     #v.shape = (np.size(v),)
     z = v.T[0]
     T = z * (K * u)
@@ -275,32 +265,26 @@ def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
               np.ndarray[np.double_t, ndim =2] xi,
               np.ndarray[np.double_t, ndim =2] xj,
               np.ndarray[np.double_t, ndim =2] a,
-              np.ndarray[np.double_t, ndim =2] b,
-              int lambdA,
-              int max_iter,
-              float tol):
+              np.ndarray[np.double_t, ndim =2] b):
     # https://arxiv.org/pdf/1306.0895.pdf
 
-    cdef float epsilon, change, obj_primal
+    cdef float change, obj_primal
     cdef np.ndarray[np.double_t, ndim =2] M, K, Kt, u, u0, v, alpha, beta, T
     cdef np.ndarray[np.double_t, ndim =1] z
     cdef int l, iteR
-
-
-    epsilon = 1e-10
 
     M = distance(np.dot(A, xi), np.dot(A, xj))
     M[M<0] = 0
     
     l = len(a)
-    K = np.exp(-lambdA * M)
+    K = np.exp(-cfg.sinkhorn.labmda_ * M)
     Kt = K / a
     u = np.ones([l, 1]) / l
     iteR = 0
     change = np.inf
     #b.shape = (np.size(b),1)
 
-    while change > tol and iteR <= max_iter:
+    while change > cfg.sinkhorn.float_tol and iteR <= cfg.sinkhorn.max_iter:
         iteR = iteR + 1
         u0 = u
         # sinkhorn distance formula:
@@ -308,17 +292,17 @@ def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
         change = np.linalg.norm(u - u0) / np.linalg.norm(u)
 
     if min(u) <= 0:
-        u = u - min(u) + epsilon
+        u = u - min(u) + EPS
 
     v = b / (np.dot(K.T, u))
 
     if min(v) <= 0:
-        v = v - min(v) + epsilon
+        v = v - min(v) + EPS
 
     alpha = np.log(u)
-    alpha = 1.0 / lambdA * (alpha - np.mean(alpha))
+    alpha = 1.0 / cfg.sinkhorn.labmda_ * (alpha - np.mean(alpha))
     beta = np.log(v)
-    beta = 1.0 / lambdA * (beta - np.mean(beta))
+    beta = 1.0 / cfg.sinkhorn.labmda_ * (beta - np.mean(beta))
     # v.shape = (np.size(v),)
     z = v.T[0]
     T = z * (K * u)
@@ -328,13 +312,12 @@ def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
     return alpha, beta, T, obj_primal, xi, xj, a, b
 
 
-def knn_swmd(dataloader_train, dataloader_test, w, lambda_, A):
+def knn_swmd(dataloader_train, dataloader_test, w, A):
     """
     Computes KNN
     Not time and memory efficient, because computes full distance matrix
 
     :param A, w: model parameters
-    :param lambda_: WMD relaxation parameter
     :return: KNN error rate
     """
     n_train = len(dataloader_train)
@@ -346,7 +329,10 @@ def knn_swmd(dataloader_train, dataloader_test, w, lambda_, A):
     # pool = mul.Pool(processes = 6)
     result = []
 
+    logging.info('Train set size: %s' % len(n_train))
     for i in range(0, n_train):
+        if i % 100 == 0:
+            logging.info('KNN iter %s' % i)
 
         Wi = np.zeros(n_test)
         x_i, bow_i, indices_train_i, _ = dataloader_train[i]
@@ -365,10 +351,10 @@ def knn_swmd(dataloader_train, dataloader_test, w, lambda_, A):
             d_b = d_b / sum(d_b)
             d_b.shape = (np.size(d_b), 1)
 
-            # result.append(pool.apply_async(sinkhorn2, (i, j, A, x_i, x_j, a, b, lambda_, 200, 1e-3)))
+            # result.append(pool.apply_async(sinkhorn2, (i, j, A, x_i, x_j, a, b)))
 
             # WARNING! sinkhorn2 and sinkhorn3 have different sets of return parameters
-            result.append(sinkhorn2(A, x_i, x_j, d_a, d_b, lambda_, 200, 1e-3))
+            result.append(sinkhorn2(A, x_i, x_j, d_a, d_b))
             # print("n_train {} n_test {} is finished".format(i, j))
 
     # pool.close()
@@ -444,3 +430,26 @@ def mink(M, k):
     sortM = sortM[0:k,:]
     idM = idM[0:k,:]
     return sortM, idM
+
+
+def evaluate_wmd(dataloader_train, dataloader_test, embed_dim):
+    """
+    Standard (non-supervised) WMD evaluation
+    Used as a baseline
+    """
+
+    logging.info('baseline WMD evaluation')
+    logging.info('KNN test')
+
+    w_baseline = np.ones([cfg.data.max_dict_size, 1])
+    A_baseline = np.identity(embed_dim)
+
+    loss_test = knn_swmd(dataloader_train,
+                         dataloader_test,
+                         w_baseline,
+                         A_baseline)
+
+    logging.info('Test error per class: %s' % loss_test)
+    logging.info('Test mean error:      %s' % np.mean(loss_test))
+
+    return loss_test

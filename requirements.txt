@@ -4,3 +4,4 @@ scipy
 Cython
 gensim
 pymystem3
+click

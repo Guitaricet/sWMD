@@ -3,7 +3,6 @@ import logging
 
 import numpy as np
 import pandas as pd
-import scipy.io as sio
 
 from gensim.models.fasttext import FastText
 from pymystem3 import Mystem
@@ -52,7 +51,7 @@ class DataLoader:
 
     Yes, I know this is a terrible format, and I hope it will be changed in the future
     """
-    def __init__(self, datapath, embeddings, batch_size, tokens_with_pos=False, lemmatize=True):
+    def __init__(self, datapath, embeddings, batch_size, tokens_with_pos=False, lemmatize=True, frac=1.0):
         self.datapath = datapath
         self.batch_size = batch_size
         self.lemmatize = lemmatize
@@ -67,6 +66,9 @@ class DataLoader:
 
         self._m = Mystem()
         self._data = pd.read_csv(datapath, sep='\t', names=['text', 'label'])
+        if 0 < frac < 1.0:
+            self._data = self._data.sample(int(len(self._data) * frac))
+
         self._tok2idx = dict()
         self._idx2tok = []
         self._default_token = '<UNK>'
