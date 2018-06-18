@@ -166,7 +166,7 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
     # pool = mul.Pool(processes = 6)
     result = []
 
-    logging.info('Train set size: %s' % len(n_train))
+    logging.info('Train set size: %s' % n_train)
     for i in range(0, n_train):
         if i % 100 == 0:
             logging.info('KNN iter %s' % i)
