@@ -182,7 +182,7 @@ class DataLoader:
         n_unique_tokens = sum(bow_big > 0)
         x = np.zeros([n_unique_tokens, self._embeddings.vector_size])
         bow_small = np.zeros(n_unique_tokens)
-        indices = np.zeros(n_unique_tokens)
+        indices = np.zeros(n_unique_tokens, dtype=np.int32)
 
         pointer = 0
         n_default_embeddings = 0

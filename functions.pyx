@@ -26,7 +26,7 @@ cimport numpy as np
 cimport cython
 
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 
@@ -353,7 +353,10 @@ def knn_swmd(dataloader_train, dataloader_test, w, lambda_, A):
         x_i, bow_i, indices_train_i, _ = dataloader_train[i]
 
         bow_i.shape = [np.size(bow_i), 1]
-        d_a = bow_i * w[indices_train_i][0]
+        logging.debug('w.shape: %s' % w.shape)
+        logging.debug('indices_train_i.shape: %s' % indices_train_i.shape)
+        logging.debug('w[indices_train_i][0]: %s' % w[indices_train_i][0])
+        d_a = bow_i * w[indices_train_i]
         d_a = d_a / sum(d_a)
 
         for j in range(0, n_test):
