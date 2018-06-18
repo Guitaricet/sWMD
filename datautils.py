@@ -1,3 +1,4 @@
+import random
 import logging
 
 import numpy as np
@@ -42,10 +43,12 @@ class DataLoader:
 
     :param datapath: path to data.csv
     :param embeddings: path to fasttesxt binary embeddings file or gensim.models.FastText object
-    :returns: tuple of X, BOW, indices where
-        X — list of numpy arrays with sizes (batch_size, text_len, embed_dim) and text_len may vary
-        BOW - list of numpy arrays of word counts with size (batch_size, n_unique_tokens)
-        ids - list of numpy arrays or word indices with size (batch_size, n_unique_tokens)
+    :getitem returns: tuple (X, BOW, indices, label) where
+        X — numpy array of word embeddings with shape (text_len, embed_dim) where text_len may vary
+        BOW - numpy array of word counts with size (n_unique_tokens,)
+        ids - numpy array of word indices with size (n_unique_tokens,)
+        label - int, class index
+    :iterator returns: list of getitem objects with size = batch_size
     BOW and ids are weekly related with each other
 
     Yes, I know this is a terrible format, and I hope it will be changed in the future
@@ -81,7 +84,7 @@ class DataLoader:
                     self._tok2idx[token] = len(self._tok2idx)
                     self._idx2tok.append(token)
         logging.info('done')
-        
+
         self._len = len(self._data)
         self._n_batches = self._len // batch_size + int(self._len % batch_size > 0)
         self._batch_pointer = 0
@@ -91,7 +94,7 @@ class DataLoader:
 
     def __getitem__(self, i):
         data_row = self._data.iloc[i]
-        label = data_row['label']
+        label = int(data_row['label'])
         X, bow, indices = self._preprocess(data_row['text'])
         return X, bow, indices, label
 
@@ -109,6 +112,31 @@ class DataLoader:
 
     def reset_batch_pointer(self):
         self._batch_pointer = 0
+
+    def batch_for_indices(self, indices):
+        batch = []
+        for i in indices:
+            batch.append(self.__getitem__(i))
+        return batch
+
+    def get_random_batch(self, batch_size=None):
+        """
+        Return random batch with the structure identical to iterator result
+        :param batch_size: optional, if not indicated, uses self.batch_size
+        """
+        if batch_size is None:
+            batch_size = self.batch_size
+        ids = random.sample(range(self.__len__()), batch_size)
+        return self.batch_for_indices(ids)
+
+    def _make_batch(self, _batch_start):
+        batch = []
+        for i in range(self.batch_size):
+            if _batch_start >= self._len:
+                self.reset_batch_pointer()
+                raise StopIteration
+            batch.append(self.__getitem__(_batch_start + i))
+        return batch
 
     def _tokenize(self, text):
         """
@@ -171,15 +199,7 @@ class DataLoader:
                     n_default_embeddings += 1
                 pointer += 1
         
-        if 2 * n_default_embeddings > len(n_unique_tokens):
+        if 2 * n_default_embeddings > n_unique_tokens:
             logging.warning('Too many default embeddings for text (more than a half of tokens)')
 
         return x, bow_small, indices
-
-    def _make_batch(self, _batch_start):
-        batch = []
-        for i in range(self.batch_size):
-            if _batch_start >= self._len:
-                raise StopIteration
-            batch.append(self.__getitem__(_batch_start + i))
-        return batch

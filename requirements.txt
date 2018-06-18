@@ -3,4 +3,4 @@ pandas
 scipy
 Cython
 gensim
-mystem
+pymystem3

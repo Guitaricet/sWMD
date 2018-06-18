@@ -30,97 +30,10 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 
+
 MAX_ITER = 200  # for sinkhorn distance
 FLOAT_TOL = 1e-3
-
-
-def load_data(dataset, seed):
-    if dataset == 'ohsumed' or dataset == 'r83' or dataset == '20ng2' or dataset == '20ng2_500':
-        data = 'dataset/' + dataset + '_tr_te.mat'
-        data = sio.loadmat(data)
-    else:
-        data = 'dataset/' + dataset + '_tr_te_split.mat'
-        data = sio.loadmat(data)
-        x_train = data['X'][0][data['TR'][seed,:]-1]
-        x_test = data['X'][0][data['TE'][seed,:]-1]
-        BOW_x_train = data['BOW_X'][0][data['TR'][seed,:]-1]
-        BOW_x_test = data['BOW_X'][0][data['TE'][seed,:]-1]
-        indices_train = data['indices'][0][data['TR'][seed,:]-1]
-        indices_test = data['indices'][0][data['TE'][seed,:]-1]
-        y_train = data['Y'][0][data['TR'][seed,:]-1]
-        y_test = data['Y'][0][data['TE'][seed,:]-1]
-        return x_train, x_test, y_train, y_test, BOW_x_train, BOW_x_test, indices_train, indices_test
-
-def minclass(y, idx):
-    if len(idx) == 0:
-        return 0
-
-    un = np.unique(y)
-    m = float('inf')
-    for i in range(0,len(un)):
-        m = min(sum(y[idx] == un[i]), m)
-    return m
-
-
-def makesplits(y, split, splits, classsplit=0, k=1):
-    # SPLITS "y" into "splits" sets with a "split" ratio.
-    # if classsplit==1 then it takes a "split" fraction from each class
-
-    if split == 1:
-        train = np.array(range(len(y)))
-        random.shuffle(train)
-        test = []
-        return train, test
-
-    if split == 0:
-        test = np.array(range(len(y)))
-        random.shuffle(test)
-        train = []
-        return train, test
-
-    n = len(y)
-    # TODO: debug this
-    # if minclass(y, np.array(range(0,len(y)))) < k or split * len(y) / len(np.unique(y)) < k :
-    #     print 'K:'+ k + ' split:' + split + ' n:' + len(y)
-    #     print 'Cannot sub-sample splits! Reduce number of neighbors_ids.'
-    #     os._exit()
-
-
-    if classsplit:
-        un = np.unique(y)
-        for i in range(0, splits):
-            trsplit = []
-            tesplit = []
-            while minclass(y, trsplit) < k:
-                for j in range(0,len(un)):
-                    ii = np.where(y == un[j])
-                    ii = np.array(ii[0])
-                    co = int(round(split * np.size(ii)))
-                    random.shuffle(ii)
-                    trsplit = np.append(trsplit, ii[0:co])
-                    tesplit = np.append(tesplit, ii[co:np.size(ii)])
-
-                    trsplit = np.array(map(int,trsplit))
-                    tesplit = np.array(map(int,tesplit))
-
-            train = trsplit
-            test = tesplit
-
-    else:
-        for i in range(0, splits):
-            trsplit = []
-            tesplit = []
-            while minclass(y,trsplit) < k:
-                ii = np.array(range(n))
-                random.shuffle(ii)
-                co = int(round(split*n))
-                trsplit = ii[0:co]
-                tesplit = ii[co:n]
-
-            train = trsplit
-            test = tesplit
-
-    return train, test
+EPSILON = 1e-8
 
 
 def distance(np.ndarray[np.double_t, ndim =2] X, np.ndarray[np.double_t, ndim =2] x):
@@ -141,18 +54,20 @@ def distance(np.ndarray[np.double_t, ndim =2] X, np.ndarray[np.double_t, ndim =2
 
     return dist
 
-def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, lambda_, batch_size, n_neighbours):
+
+def grad_swmd(dataloader, document_centers, w, A, lambda_, batch_size, n_neighbours):
     """
     Computes gradients with respect to A and w for one random batch
     The formula can be found in https://papers.nips.cc/paper/6139-supervised-word-movers-distance.pdf
     (formula 8 and 10, page 4)
 
-    :param x_train: matrix of documents (embed_dim x doc_idx x n_words)
-    :param y_train: list of classes of documents
-    :param bow_x_train: bag-of-words text representations (d in the paper)
-    :param indices_train: indices of words in the text for each text (mostly used for sparce matrix summation)
-    :param xtr_center:
-    :param w: words weights (learnable)
+    :param batch: dataloader object with batch format:
+        x_train: matrix of documents (embed_dim x doc_idx x n_words)
+        bow_x_train: bag-of-words text representations (d in the paper)
+        indices_train: indices of words in the text for each text (mostly used for sparce matrix summation)
+        y_train: list of classes of documents
+    :param document_centers: mean word vectors for each (train) document in A-transformed space
+    :param w: words weights
     :param A: transformation matrix
     :param lambda_: smoothing parameter (entropy regularisation weight) — higher labmda_ closer sinkhorn to WMD
     :param batch_size: batch size
@@ -160,50 +75,42 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
     :return: dw, dA - values of gradients, mean gradient for the batch
     """
 
-    epsilon = 1e-8
+    dim = dataloader._embeddings.vector_size
+    n_train = len(dataloader)  # number of documents
 
-    dim = np.size(x_train[0], 0)  # dimension of word vector
-    n_train = len(y_train)  # number of documents
-
-    dw = np.zeros([np.size(w), 1])
-    dA = np.zeros([dim, dim])
+    dw = np.zeros(w.shape)  # (vocab_len, 1)
+    dA_aux = np.zeros([dim, dim])  # dA = np.dot(A, dA_aux)
 
     # Sample documents
-    sample_doc_idx = random.sample(range(n_train), batch_size)
+    batch_indices = random.sample(range(n_train), batch_size)
 
     # Euclidean distances between document centers
-    D_c = distance(np.dot(A, xtr_center), np.dot(A, xtr_center))
+    D_c = distance(np.dot(A, document_centers), np.dot(A, document_centers))
     tr_loss = 0
     n_nan = 0
 
     logging.debug('Starting batch iteration')
 
-    for batch_idx in range(0, batch_size):
-        if batch_idx % 10 == 0:
-            logging.debug('Batch {}'.format(batch_idx))
+    for i in batch_indices:
+        # i for document index in dataloader
 
-        doc_idx = sample_doc_idx[batch_idx]
-        xi = x_train[doc_idx]
-        yi = y_train[doc_idx]
-        ids_i = indices_train[doc_idx]
+        xi, bow_i, ids_i, yi = dataloader[i]
+
         ids_i.shape = ids_i.size
-        bow_i = bow_x_train[doc_idx]
         bow_i.shape = (np.size(bow_i), 1)
         d_a_tilde = bow_i * w[ids_i]
-        d_a_tilde = d_a_tilde / sum(d_a_tilde)  # 'our' document, weighted words, normalized
+        d_a_tilde = d_a_tilde / sum(d_a_tilde)  # document i weighted words, normalized
 
-        neighbors_ids = np.argsort(D_c[:, doc_idx])  # sort by the order of the distance to the 'i' document
+        neighbors_ids = np.argsort(D_c[:, i])  # sort by the order of the distance to the document i
+        neighbors_ids = neighbors_ids[1:n_neighbours + 1]  # use only N_size nearest neighbors ids
 
         # Compute WMD from xi to the rest documents
-        neighbors_ids = neighbors_ids[1:n_neighbours + 1]  # use only N_size nearest neighbors ids
         dD_dA_all = dict()
         alpha_all = dict()
         beta_all = dict()
 
-        x_train_nn = x_train[neighbors_ids]  # 'nn' for nearest neighbors (Eucledian)
-        y_train_nn = y_train[neighbors_ids]
-        bow_x_train_nn = bow_x_train[neighbors_ids]
-        indices_train_nn = indices_train[neighbors_ids]
+        # 'nn' for nearest neighbors (Eucledian)
+        neighbors = dataloader.batch_for_indices(neighbors_ids)
 
         # TODO: fix multiprocessing
         # pool = mul.Pool(processes = 6)
@@ -212,21 +119,18 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
         for j in range(0, n_neighbours):
             # Computing smoothed WMD
 
-            xj = x_train_nn[j]
-            yj = y_train_nn[j]
+            xj, bow_j, ids_j, yj = dataloader[neighbors[j]]
             # M = distance(np.dot(A,xi), np.dot(A,xj))
-            ids_j = indices_train_nn[j]
             ids_j.shape = ids_j.size
-            bow_j = bow_x_train_nn[j]
             bow_j.shape = (np.size(bow_j), 1)
             d_b_tilde = bow_j * w[ids_j]
             d_b_tilde = d_b_tilde / sum(d_b_tilde)  # 'other' document, weighted words, normalized
 
             # RES.append(pool.apply_async(sinkhorn3, (ii, j, A, xi, xj, a, b, lambda_, 200, 1e-3)))
 
-            # WARNING! sinkhorn2 and sinkhorn3 have different sets of return parameters
+            # WARNING: sinkhorn2 and sinkhorn3 have different sets of return parameters
             sinkhorn_results.append(
-                sinkhorn3(batch_idx, j, A, xi, xj, d_a_tilde, d_b_tilde, lambda_, MAX_ITER, FLOAT_TOL)
+                sinkhorn3(A, xi, xj, d_a_tilde, d_b_tilde, lambda_, MAX_ITER, FLOAT_TOL)
             )
 
         # pool.close()
@@ -255,12 +159,12 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
 
         # Compute NCA probabilities
         Di[Di < 0] = 0
-        dmin = min(Di)
-        p_i = np.exp(-Di + dmin) + epsilon
-        p_i[y_train_nn == doc_idx] = 0
+        dmin = min(Di) # WTF: why use dmin?
+        p_i = np.exp(-Di + dmin) + EPSILON  # WTF: why eps in the nominator?
         p_i = p_i / sum(p_i)
-        p_a = sum(p_i[y_train_nn == yi])  # probability for document d_a
-        p_a = p_a + epsilon  # to avoid division by 0
+        y_mask = [y_nn == yi for _, _, _, y_nn in neighbors]  # all neighbors with the same class as d_a
+        p_a = sum(p_i[y_mask])  # probability for document d_a
+        p_a = p_a + EPSILON  # to avoid division by 0
 
         # Compute gradient wrt w and A
         # logging.debug('\tComputing w and A gradients for batch')
@@ -269,12 +173,10 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
 
         for j in range(0, n_neighbours):
             # print('\tIter {}'.format(j))
+            _, bow_j, ids_j, yj = dataloader[neighbors[j]]
 
-            yi_bin_mask = y_train_nn[j] == yi
-            c_ij = p_i[j] / p_a * yi_bin_mask - p_i[j]
-            ids_j = indices_train_nn[j]
-            ids_j.shape = ids_j.size
-            bow_j = bow_x_train_nn[j]
+            c_ij = p_i[j] / p_a * int(yj == yi) - p_i[j]
+            # ids_j.shape = ids_j.size
             d_b_tilde = bow_j * w[ids_j]  # there was a transposition, but it should not be here (I suppose)
             d_b_tilde = d_b_tilde / sum(d_b_tilde)
             d_a_sum = sum(w[ids_i] * bow_i)
@@ -292,12 +194,12 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
         if sum(np.isnan(dw_ii)) == 0 and sum(sum(np.isnan(dA_ii))) == 0:
             dw_ii.shape = [np.size(w), 1]
             dw = dw + dw_ii
-            dA = dA + dA_ii
+            dA_aux = dA_aux + dA_ii
             tr_loss = tr_loss - np.log(p_a)
         else:
             n_nan = n_nan + 1
 
-    dA = np.dot(A, dA)
+    dA = np.dot(A, dA_aux)
 
     batch_size = batch_size - n_nan
     if n_nan > 0:
@@ -315,8 +217,7 @@ def grad_swmd(x_train, y_train, bow_x_train, indices_train, xtr_center, w, A, la
     return dw, dA
 
 
-def sinkhorn2(int i, int j,
-              np.ndarray[np.double_t, ndim =2] A,
+def sinkhorn2(np.ndarray[np.double_t, ndim =2] A,
               np.ndarray[np.double_t, ndim =2] xi,
               np.ndarray[np.double_t, ndim =2] xj,
               np.ndarray[np.double_t, ndim =2] a,
@@ -368,12 +269,10 @@ def sinkhorn2(int i, int j,
     obj_primal = np.sum(T*M)#sum(sum(T*M))
     # obj_dual = a * alpha + b * beta
   
-    # print "ntr "+ str(i) + " nte " + str(j) + " is finished"
     return alpha, beta, T, obj_primal
 
 
-def sinkhorn3(int i, int j,
-              np.ndarray[np.double_t, ndim =2] A,
+def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
               np.ndarray[np.double_t, ndim =2] xi,
               np.ndarray[np.double_t, ndim =2] xj,
               np.ndarray[np.double_t, ndim =2] a,
@@ -467,7 +366,7 @@ def knn_swmd(dataloader_train, dataloader_test, w, lambda_, A):
             # result.append(pool.apply_async(sinkhorn2, (i, j, A, x_i, x_j, a, b, lambda_, 200, 1e-3)))
 
             # WARNING! sinkhorn2 and sinkhorn3 have different sets of return parameters
-            result.append(sinkhorn2(i, j, A, x_i, x_j, d_a, d_b, lambda_, 200, 1e-3))
+            result.append(sinkhorn2(A, x_i, x_j, d_a, d_b, lambda_, 200, 1e-3))
             # print("n_train {} n_test {} is finished".format(i, j))
 
     # pool.close()
