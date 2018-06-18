@@ -227,7 +227,7 @@ def sinkhorn2(np.ndarray[np.double_t, ndim =2] A,
     M[M<0] = 0
     
     l = len(a)
-    K = np.exp(-cfg.sinkhorn.labmda_ * M)
+    K = np.exp(-cfg.sinkhorn.lambda_ * M)
     Kt = K / a
     u = np.ones([l,1]) /l
     iteR = 0
@@ -249,9 +249,9 @@ def sinkhorn2(np.ndarray[np.double_t, ndim =2] A,
         v = v - min(v) + EPS
 
     alpha = np.log(u)
-    alpha = 1.0 / cfg.sinkhorn.labmda_ * (alpha - np.mean(alpha))
+    alpha = 1.0 / cfg.sinkhorn.lambda_ * (alpha - np.mean(alpha))
     beta = np.log(v)
-    beta = 1.0 / cfg.sinkhorn.labmda_ * (beta - np.mean(beta))
+    beta = 1.0 / cfg.sinkhorn.lambda_ * (beta - np.mean(beta))
     #v.shape = (np.size(v),)
     z = v.T[0]
     T = z * (K * u)
@@ -277,7 +277,7 @@ def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
     M[M<0] = 0
     
     l = len(a)
-    K = np.exp(-cfg.sinkhorn.labmda_ * M)
+    K = np.exp(-cfg.sinkhorn.lambda_ * M)
     Kt = K / a
     u = np.ones([l, 1]) / l
     iteR = 0
@@ -300,9 +300,9 @@ def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
         v = v - min(v) + EPS
 
     alpha = np.log(u)
-    alpha = 1.0 / cfg.sinkhorn.labmda_ * (alpha - np.mean(alpha))
+    alpha = 1.0 / cfg.sinkhorn.lambda_ * (alpha - np.mean(alpha))
     beta = np.log(v)
-    beta = 1.0 / cfg.sinkhorn.labmda_ * (beta - np.mean(beta))
+    beta = 1.0 / cfg.sinkhorn.lambda_ * (beta - np.mean(beta))
     # v.shape = (np.size(v),)
     z = v.T[0]
     T = z * (K * u)
