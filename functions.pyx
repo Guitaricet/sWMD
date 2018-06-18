@@ -312,71 +312,6 @@ def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
     return alpha, beta, T, obj_primal, xi, xj, a, b
 
 
-def knn_swmd(dataloader_train, dataloader_test, w, A):
-    """
-    Computes KNN
-    Not time and memory efficient, because computes full distance matrix
-
-    :param A, w: model parameters
-    :return: KNN error rate
-    """
-    n_train = len(dataloader_train)
-    n_test = len(dataloader_test)
-
-    wmd_dist = np.zeros([n_train, n_test])
-
-    # TODO: fix multiprocessing
-    # pool = mul.Pool(processes = 6)
-    result = []
-
-    logging.info('Train set size: %s' % len(n_train))
-    for i in range(0, n_train):
-        if i % 100 == 0:
-            logging.info('KNN iter %s' % i)
-
-        Wi = np.zeros(n_test)
-        x_i, bow_i, indices_train_i, _ = dataloader_train[i]
-
-        bow_i.shape = [np.size(bow_i), 1]
-        logging.debug('w.shape: %s' % str(w.shape))
-        logging.debug('indices_train_i.shape: %s' % str(indices_train_i.shape))
-        logging.debug('w[indices_train_i][0]: %s' % str(w[indices_train_i][0]))
-        d_a = bow_i * w[indices_train_i]
-        d_a = d_a / sum(d_a)
-
-        for j in range(0, n_test):
-            x_j, bow_j, indices_test_j, _ = dataloader_test[j]
-            bow_j.shape = [np.size(bow_j), 1]
-            d_b = bow_j * w[indices_test_j][0]
-            d_b = d_b / sum(d_b)
-            d_b.shape = (np.size(d_b), 1)
-
-            # result.append(pool.apply_async(sinkhorn2, (i, j, A, x_i, x_j, a, b)))
-
-            # WARNING! sinkhorn2 and sinkhorn3 have different sets of return parameters
-            result.append(sinkhorn2(A, x_i, x_j, d_a, d_b))
-            # print("n_train {} n_test {} is finished".format(i, j))
-
-    # pool.close()
-    # pool.join()
-
-    n = 0
-    for res in result:
-        # r = res.get()
-        r = res
-        i = n // n_test
-        j = np.mod(n, n_test)
-        wmd_dist[i, j] = r[3]
-        n += 1
-
-    err = knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, [5])
-
-    del wmd_dist
-    gc.collect()
-
-    return err
-
-
 def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
     """
     Computes KNN error rate
@@ -430,26 +365,3 @@ def mink(M, k):
     sortM = sortM[0:k,:]
     idM = idM[0:k,:]
     return sortM, idM
-
-
-def evaluate_wmd(dataloader_train, dataloader_test, embed_dim):
-    """
-    Standard (non-supervised) WMD evaluation
-    Used as a baseline
-    """
-
-    logging.info('baseline WMD evaluation')
-    logging.info('KNN test')
-
-    w_baseline = np.ones([cfg.data.max_dict_size, 1])
-    A_baseline = np.identity(embed_dim)
-
-    loss_test = knn_swmd(dataloader_train,
-                         dataloader_test,
-                         w_baseline,
-                         A_baseline)
-
-    logging.info('Test error per class: %s' % loss_test)
-    logging.info('Test mean error:      %s' % np.mean(loss_test))
-
-    return loss_test

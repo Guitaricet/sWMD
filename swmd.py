@@ -14,13 +14,14 @@ TR is a matrix whose ith row is the ith training split of document indices
 TE is a matrix whose ith row is the ith testing split of document indices
 """
 
-
 import os
 import gc
 import sys
 import random
 import logging
 import pyximport
+
+from time import time
 
 import click
 import numpy as np
@@ -64,7 +65,7 @@ def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefold
     logging.info('Datasets are loaded')
 
     if cfg.train.use_baseline:
-        f.evaluate_wmd(dataloader_train, dataloader_test, embeddings.vector_size)
+        evaluate_wmd(dataloader_train, dataloader_test, embeddings.vector_size)
 
     # Compute document center (mean word vector of each document)
     logging.info('Computing document centers...')
@@ -104,11 +105,11 @@ def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefold
         if i % cfg.train.save_freq == 0:
             # Compute loss
             logging.info('KNN train')
-            loss_train = f.knn_swmd(dataloader_train, dataloader_train, w, A)
+            loss_train = knn_swmd(dataloader_train, dataloader_train, w, A)
             logging.info('Train knn err: %s' % loss_train)
 
             logging.info('KNN valid')
-            loss_valid = f.knn_swmd(dataloader_train, dataloader_val, w, A)
+            loss_valid = knn_swmd(dataloader_train, dataloader_val, w, A)
 
             logging.info('Valid knn err: %s' % loss_valid)
 
@@ -119,8 +120,104 @@ def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefold
         gc.collect()
 
     logging.info('KNN test')
-    loss_test = f.knn_swmd(dataloader_train, dataloader_test, w, A)
+    loss_test = knn_swmd(dataloader_train, dataloader_test, w, A)
     logging.info('Test knn err: %s' % loss_test)
+
+
+def evaluate_wmd(dataloader_train, dataloader_test, embed_dim):
+    """
+    Standard (non-supervised) WMD evaluation
+    Used as a baseline
+    """
+
+    logging.info('baseline WMD evaluation')
+    logging.info('KNN test')
+
+    w_baseline = np.ones([cfg.data.max_dict_size, 1])
+    A_baseline = np.identity(embed_dim)
+
+    loss_test = knn_swmd(dataloader_train,
+                         dataloader_test,
+                         w_baseline,
+                         A_baseline)
+
+    logging.info('Test error per class: %s' % loss_test)
+    logging.info('Test mean error:      %s' % np.mean(loss_test))
+
+    return loss_test
+
+
+def knn_swmd(dataloader_train, dataloader_test, w, A):
+    """
+    Computes KNN
+    Not time and memory efficient, because computes full distance matrix
+
+    :param A, w: model parameters
+    :return: KNN error rate
+    """
+    start_time = time()
+
+    n_train = len(dataloader_train)
+    n_test = len(dataloader_test)
+
+    wmd_dist = np.zeros([n_train, n_test])
+
+    # TODO: fix multiprocessing
+    # pool = mul.Pool(processes = 6)
+    result = []
+
+    logging.info('Train set size: %s' % len(n_train))
+    for i in range(0, n_train):
+        if i % 100 == 0:
+            logging.info('KNN iter %s' % i)
+
+        Wi = np.zeros(n_test)
+
+        prep_time = time()
+        x_i, bow_i, indices_train_i, _ = dataloader_train[i]
+        logging.info('Preprocessing time: %s' % (time() - prep_time))
+    
+        bow_i.shape = [np.size(bow_i), 1]
+        d_a = bow_i * w[indices_train_i]
+        d_a = d_a / sum(d_a)
+
+        inn_cycle_time = time()
+        for j in range(0, n_test):
+            x_j, bow_j, indices_test_j, _ = dataloader_test[j]
+            bow_j.shape = [np.size(bow_j), 1]
+            d_b = bow_j * w[indices_test_j][0]
+            d_b = d_b / sum(d_b)
+            d_b.shape = (np.size(d_b), 1)
+
+            # result.append(pool.apply_async(sinkhorn2, (i, j, A, x_i, x_j, a, b)))
+
+            # WARNING! sinkhorn2 and sinkhorn3 have different sets of return parameters
+            metric_time = time()
+            result.append(f.sinkhorn2(A, x_i, x_j, d_a, d_b))
+            if j == 1:
+                logging.info('Metric calculation time: %s' % (time() - metric_time))
+            # print("n_train {} n_test {} is finished".format(i, j))
+
+        logging.info('Inner cycle total time: %s' % (time() - inn_cycle_time))
+
+    # pool.close()
+    # pool.join()
+
+    n = 0
+    for res in result:
+        # r = res.get()
+        r = res
+        i = n // n_test
+        j = np.mod(n, n_test)
+        wmd_dist[i, j] = r[3]
+        n += 1
+
+    err = knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, [5])
+
+    del wmd_dist
+    gc.collect()
+
+    return err
 
 
 if __name__ == '__main__':
