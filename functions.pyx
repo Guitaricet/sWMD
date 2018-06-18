@@ -233,7 +233,6 @@ def sinkhorn2(np.ndarray[np.double_t, ndim =2] A,
     cdef int l, iteR
 
     epsilon = 1e-10
-    logging.debug('A.shape: %s, xi.shape: %s, xj.shape: %s' % (str(A.shape), str(xi.shape), str(xj.shape)))
     M = distance(np.dot(A, xi.T), np.dot(A, xj.T))
     M[M<0] = 0
     
