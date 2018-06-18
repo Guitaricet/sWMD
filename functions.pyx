@@ -350,14 +350,14 @@ def knn_swmd(dataloader_train, dataloader_test, w, lambda_, A):
     for i in range(0, n_train):
 
         Wi = np.zeros(n_test)
-        x_i, bow_i, indices_train_i = dataloader_train[i]
+        x_i, bow_i, indices_train_i, _ = dataloader_train[i]
 
         bow_i.shape = [np.size(bow_i), 1]
         d_a = bow_i * w[indices_train_i][0]
         d_a = d_a / sum(d_a)
 
         for j in range(0, n_test):
-            x_j, bow_j, indices_test_j = dataloader_test[j]
+            x_j, bow_j, indices_test_j, _ = dataloader_test[j]
             bow_j.shape = [np.size(bow_j), 1]
             d_b = bow_j * w[indices_test_j][0]
             d_b = d_b / sum(d_b)
