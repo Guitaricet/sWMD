@@ -107,7 +107,7 @@ if __name__ == '__main__':
         logging.info('Datasets are loaded')
 
         if BASELINE:
-            f.evaluate_wmd(dataloader_train, dataloader_test, embeddings.vector_size)
+            evaluate_wmd(dataloader_train, dataloader_test, embeddings.vector_size)
 
         # Compute document center (mean word vector of each document)
         logging.info('Computing document centers...')
@@ -120,7 +120,7 @@ if __name__ == '__main__':
 
         # Define optimization parameters:
         # TODO: initialize A via WCD (word centroid distance) training
-        A = np.random.rand(shape=(HIDDEN_DIM, embeddings.vector_size))
+        A = np.random.rand(HIDDEN_DIM, embeddings.vector_size)
         w = np.ones([MAX_DICT_SIZE, 1])  # why ones initialisation?
 
         # TODO: Test learned metric for WCD
