@@ -153,7 +153,7 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
                            + np.dot(xj.T * d_b_tilde.T, xj) \
                            - np.dot(np.dot(xi.T, transport_matrix), xj) \
                            - np.dot(np.dot(xj.T, transport_matrix.T), xi)
-            assert sum(np.isnan(grad)) == 0, 'A grad is None, iter %s' % j
+            assert np.sum(np.isnan(grad)) == 0, 'A grad is None, iter %s' % j
             dD_dA_all[j] = grad
 
         # Compute NCA probabilities
