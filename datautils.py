@@ -40,7 +40,9 @@ class DataLoader:
     Iterator
 
     :param datapath: path to data.csv
-    :param embeddings: path to fasttesxt binary embeddings file or gensim.models.FastText object
+    :param embeddings: path to fasttesxt binary embeddings file or gensim.models.FastText binary file
+    :param batch_size: int, batch size
+    :param tokens_with_pos: adds POS-tag to tokens
     :getitem returns: tuple (X, BOW, indices, label) where
         X — numpy array of word embeddings with shape (text_len, embed_dim) where text_len may vary
         BOW - numpy array of word counts with size (n_unique_tokens,)
@@ -63,7 +65,7 @@ class DataLoader:
         elif isinstance(embeddings, FastText):
             self._embeddings = embeddings
         else:
-            raise ValueError('embeddings should be either path to fastttext model or gensim.models.FastText object')
+            raise ValueError('embeddings should be either path to fastttext model or gensim.models.FastText binary file')
 
         self._m = Mystem()
         self._data = pd.read_csv(datapath, sep='\t', names=['text', 'label'])

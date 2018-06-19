@@ -329,14 +329,6 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
         # TODO: change to for-clause
         while 1:
             topk_indices = ix[0:k, :]
-            try:
-                logging.debug('ix.shape: %s' % str(ix.shape))
-                logging.debug(topk_indices)
-                logging.debug('topk_indices type: %s' % type(topk_indices))
-            except Exception as e:
-                logging.error('Error in knn_fall_back logging')
-                logging.error(e)
-
             sam = y_train[topk_indices]
             vote, count = stats.mode(sam)
             vote = vote[0]
@@ -345,6 +337,15 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
             not_sure = count < k / 2
             if np.sum(still_voting * not_sure) == 0:
                 uneq = still_voting != 0
+                try:
+                    logging.debug('uneq.shape: %s' % str(uneq.shape))
+                    logging.debug(uneq)
+                    logging.debug('vote.shape: %s' % str(vote.shape))
+                    logging.debug(vote)
+                except Exception as e:
+                    logging.error('Error in knn_fall_back logging')
+                    logging.error(e)
+
                 predictions[k, uneq] = vote[uneq]
                 if np.sum(predictions[k, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
