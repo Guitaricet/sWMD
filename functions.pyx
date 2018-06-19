@@ -104,6 +104,7 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
             logging.warning('less neighbours then %s' % n_neighbours)
 
         # Compute WMD from xi to the rest documents
+        # TODO: change dicts to numpy arrays where it is possible
         dD_dA_all = dict()
         alpha_all = dict()
         beta_all = dict()
@@ -153,10 +154,11 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
             ))
 
             # gradient for metric
-            dD_dA_all[j] = np.dot(xi * d_a_tilde, xi.T) \
-                           + np.dot(xj * d_b_tilde, xj.T) \
-                           - np.dot(np.dot(xi, transport_matrix), xj.T) \
-                           - np.dot(np.dot(xj, transport_matrix.T), xi.T)
+            # dD_{Aw} / dA
+            dD_dA_all[j] = np.dot(xi.T * d_a_tilde.T, xi) \
+                           + np.dot(xj.T * d_b_tilde.T, xj) \
+                           - np.dot(np.dot(xi.T, transport_matrix), xj) \
+                           - np.dot(np.dot(xj.T, transport_matrix.T), xi)
 
         # Compute NCA probabilities
         Di[Di < 0] = 0
@@ -183,7 +185,7 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
             d_a_sum = sum(w[ids_i] * bow_i)
             d_b_sum = sum(w[ids_j] * bow_j)
 
-            # dD_Aw / dw:
+            # dD_{Aw} / dw:
             dwmd_dwi = bow_i * alpha_all[j] / d_a_sum - bow_i * (np.dot(alpha_all[j].T, d_a_tilde) / d_a_sum)
             dwmd_dwj = bow_j * beta_all[j] / d_b_sum - bow_j * (np.dot(beta_all[j].T, d_b_tilde) / d_b_sum)
 

@@ -65,6 +65,7 @@ def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefold
     logging.info('Datasets are loaded')
 
     if cfg.train.use_baseline:
+        logging.info('baseline WMD evaluation')
         evaluate_wmd(dataloader_train, dataloader_test, embeddings.vector_size)
 
     # Compute document center (mean word vector of each document)
@@ -130,7 +131,6 @@ def evaluate_wmd(dataloader_train, dataloader_test, embed_dim):
     Used as a baseline
     """
 
-    logging.info('baseline WMD evaluation')
     logging.info('KNN test')
 
     w_baseline = np.ones([cfg.data.max_dict_size, 1])
@@ -141,8 +141,8 @@ def evaluate_wmd(dataloader_train, dataloader_test, embed_dim):
                          w_baseline,
                          A_baseline)
 
-    logging.info('Test error per class: %s' % loss_test)
-    logging.info('Test mean error:      %s' % np.mean(loss_test))
+    logging.info('Test error per knn: %s' % loss_test)
+    logging.info('Test mean error:    %s' % np.mean(loss_test))
 
     return loss_test
 
