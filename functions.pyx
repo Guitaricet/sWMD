@@ -37,13 +37,11 @@ def distance(np.ndarray[np.double_t, ndim =2] X, np.ndarray[np.double_t, ndim =2
     # computes the pairwise squared distance matrix
     # between any column vectors in X and in x
 
-    cdef int D, N, d, n
+    cdef int D, d
     cdef np.ndarray[np.double_t, ndim =2] dist
 
     D = np.size(X[:,0])
-    N = np.size(X[0,:])
     d = np.size(x[:,0])
-    n = np.size(x[0,:])
     if D != d:
         logging.error('Both sets of vectors must have same dimensionality!')
         os._exit()
@@ -320,13 +318,13 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
     # TODO: try to use scipy or change to faster knn approximation algorithm
     k_neighbors_list = sorted(k_neighbors_list)
 
-    [n, ne] = [np.size(DE, 0), np.size(DE, 1)]
-    [dists, ix] = mink(DE, k_neighbors_list[-1])
+    n_test = DE.shape[1]
+    _, ix = mink(DE, k_neighbors_list[-1])
 
-    pe = np.zeros([len(k_neighbors_list), ne])
+    predictions = np.zeros([len(k_neighbors_list), n_test])
 
     for i in range(0, len(k_neighbors_list)):
-        still_voting = np.ones(ne)
+        still_voting = np.ones(n_test)
         k = k_neighbors_list[i]
         # TODO: change to for-clause
         while 1:
@@ -340,28 +338,28 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
                 logging.error(e)
 
             sam = y_train[topk_indices]
-            [vote, count] = stats.mode(sam)
+            vote, count = stats.mode(sam)
             vote = vote[0]
             count = count[0]
 
             not_sure = count < k / 2
             if np.sum(still_voting * not_sure) == 0:
                 uneq = still_voting != 0
-                pe[k, uneq] = vote[uneq]
-                if np.sum(pe[k, :] == 0) != 0:
+                predictions[k, uneq] = vote[uneq]
+                if np.sum(predictions[k, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
                 break
 
             conf = still_voting - not_sure
             conf = conf == 1
 
-            pe[i, conf] = vote[conf]
+            predictions[i, conf] = vote[conf]
 
             still_voting = still_voting * not_sure
             if k == 1:
                 uneq = still_voting != 0
-                pe[i, uneq] = vote[uneq]
-                if np.sum(pe[i, :] == 0) != 0:
+                predictions[i, uneq] = vote[uneq]
+                if np.sum(predictions[i, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
                 break
             k = k - 2
@@ -369,14 +367,15 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
     # NOTE: can be speeded up using matrix computation (?)
     err = np.ones(len(k_neighbors_list))
     for i in range(0, len(k_neighbors_list)):
-        err[i] = np.mean(pe[i, :] != y_test)
+        err[i] = np.mean(predictions[i, :] != y_test)
 
     return err
 
 
 def mink(M, k):
-    sortM = np.sort(M,0)
-    idM = np.argsort(M,0)
-    sortM = sortM[0:k,:]
-    idM = idM[0:k,:]
+    # NOTE: use only argsort, index for getting values to speed up a bit
+    sortM = np.sort(M, 0)
+    idM = np.argsort(M, 0)
+    sortM = sortM[0:k, :]
+    idM = idM[0:k, :]
     return sortM, idM
