@@ -85,6 +85,8 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
 
     logging.debug('Starting batch iteration')
 
+    warned = False
+
     for i in batch_indices:
         # i for document index in dataloader
 
@@ -97,6 +99,9 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
 
         neighbors_ids = np.argsort(D_c[:, i])  # sort by the order of the distance to the document i
         neighbors_ids = neighbors_ids[1:n_neighbours + 1]  # use only N_size nearest neighbors ids
+        if len(neighbors_ids) < n_neighbours and not warned:
+            warned = True
+            logging.warning('less neighbours then %s' % n_neighbours)
 
         # Compute WMD from xi to the rest documents
         dD_dA_all = dict()
@@ -104,13 +109,13 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
         beta_all = dict()
 
         # 'nn' for nearest neighbors (Eucledian)
-        neighbors = dataloader.batch_for_indices(neighbors_ids)
+        neighbors = dataloader.batch_for_indices(neighbors_ids)  # may consume a lot of memory for big texts and n_neighbours
 
         # TODO: fix multiprocessing
         # pool = mul.Pool(processes = 6)
         sinkhorn_results = []
 
-        for j in range(0, n_neighbours):
+        for j in range(0, len(neighbors)):
             # Computing smoothed WMD
 
             xj, bow_j, ids_j, yj = neighbors[j]
@@ -163,9 +168,9 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
         dw_ii = np.zeros(np.size(w))
         dA_ii = np.zeros([dim, dim])
 
-        for j in range(0, n_neighbours):
+        for j in range(0, len(neighbors)):
             # print('\tIter {}'.format(j))
-            _, bow_j, ids_j, yj = dataloader[neighbors[j]]
+            _, bow_j, ids_j, yj = neighbors[j]
 
             c_ij = p_i[j] / p_a * int(yj == yi) - p_i[j]
             # ids_j.shape = ids_j.size
