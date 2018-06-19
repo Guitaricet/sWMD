@@ -145,8 +145,12 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
             xj = r[5]
             d_a_tilde = r[6]
             d_b_tilde = r[7]
-            d_a_tilde.shape = (np.size(d_a_tilde),)
-            d_b_tilde.shape = (np.size(d_b_tilde),)
+            # d_a_tilde.shape = (np.size(d_a_tilde),)
+            # d_b_tilde.shape = (np.size(d_b_tilde),)
+
+            logging.debug('xi: %s, d_a_tilde: %s, xj: %s, d_b_tilde: %s, transport_matrix: %s' % (
+                str(xi.shape), str(d_a_tilde.shape), str(xj.shape), str(d_b_tilde.shape), str(transport_matrix.shape)
+            )
 
             # gradient for metric
             dD_dA_all[j] = np.dot(xi * d_a_tilde.T, xi.T) \
