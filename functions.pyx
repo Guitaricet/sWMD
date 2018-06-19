@@ -113,7 +113,7 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
         for j in range(0, n_neighbours):
             # Computing smoothed WMD
 
-            xj, bow_j, ids_j, yj = dataloader[neighbors[j]]
+            xj, bow_j, ids_j, yj = neighbors[j]
             # M = distance(np.dot(A,xi), np.dot(A,xj))
             ids_j.shape = ids_j.size
             bow_j.shape = (np.size(bow_j), 1)
