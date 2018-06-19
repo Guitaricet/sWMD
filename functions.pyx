@@ -339,7 +339,7 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
             if np.sum(still_voting * not_sure) == 0:
                 uneq = still_voting != 0
                 predictions[i, uneq] = vote[uneq]
-                if np.sum(predictions[k, :] == 0) != 0:
+                if np.sum(predictions[i, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
                 break
 
