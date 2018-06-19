@@ -150,7 +150,7 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
 
             logging.debug('xi: %s, d_a_tilde: %s, xj: %s, d_b_tilde: %s, transport_matrix: %s' % (
                 str(xi.shape), str(d_a_tilde.shape), str(xj.shape), str(d_b_tilde.shape), str(transport_matrix.shape)
-            )
+            ))
 
             # gradient for metric
             dD_dA_all[j] = np.dot(xi * d_a_tilde.T, xi.T) \
