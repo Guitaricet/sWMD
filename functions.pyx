@@ -315,22 +315,28 @@ def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
 def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
     """
     Computes KNN error rate
+    :param DE: distance matrix, DE[i,j] = distance(train[i], test[j])
     """
+    k_neighbors_list = sorted(k_neighbors_list)
+
     [n, ne] = [np.size(DE, 0), np.size(DE, 1)]
     [dists, ix] = mink(DE, k_neighbors_list[-1])
 
     pe = np.zeros([len(k_neighbors_list), ne])
 
-    for k in range(0, len(k_neighbors_list)):
+    for i in range(0, len(k_neighbors_list)):
         still_voting = np.ones(ne)
-        kcopy = k_neighbors_list[k]
+        k = k_neighbors_list[i]
+        # TODO: change to for-clause
         while 1:
-            sam = y_train[ix[0:kcopy, :]]
+            topk_indices = ix[0:k, :]
+            sam = y_train[topk_indices]
+            logging.debug('ix.shape: %s' % ix.shape)
             [vote, count] = stats.mode(sam)
             vote = vote[0]
             count = count[0]
 
-            not_sure = count < kcopy / 2
+            not_sure = count < k / 2
             if np.sum(still_voting * not_sure) == 0:
                 uneq = still_voting != 0
                 pe[k, uneq] = vote[uneq]
@@ -341,20 +347,21 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
             conf = still_voting - not_sure
             conf = conf == 1
 
-            pe[k, conf] = vote[conf]
+            pe[i, conf] = vote[conf]
 
             still_voting = still_voting * not_sure
-            if kcopy == 1:
+            if k == 1:
                 uneq = still_voting != 0
-                pe[k, uneq] = vote[uneq]
-                if np.sum(pe[k, :] == 0) != 0:
+                pe[i, uneq] = vote[uneq]
+                if np.sum(pe[i, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
                 break
-            kcopy = kcopy - 2
+            k = k - 2
 
+    # NOTE: can be speeded up using matrix computation (?)
     err = np.ones(len(k_neighbors_list))
-    for k in range(0, len(k_neighbors_list)):
-        err[k] = np.mean(pe[k, :] != y_test)
+    for i in range(0, len(k_neighbors_list)):
+        err[i] = np.mean(pe[i, :] != y_test)
 
     return err
 
