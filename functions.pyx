@@ -317,6 +317,7 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
     Computes KNN error rate
     :param DE: distance matrix, DE[i,j] = distance(train[i], test[j])
     """
+    # TODO: try to use scipy or change to faster knn approximation algorithm
     k_neighbors_list = sorted(k_neighbors_list)
 
     [n, ne] = [np.size(DE, 0), np.size(DE, 1)]
