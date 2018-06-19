@@ -153,8 +153,8 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
             ))
 
             # gradient for metric
-            dD_dA_all[j] = np.dot(xi * d_a_tilde.T, xi.T) \
-                           + np.dot(xj * d_b_tilde.T, xj.T) \
+            dD_dA_all[j] = np.dot(xi * d_a_tilde, xi.T) \
+                           + np.dot(xj * d_b_tilde, xj.T) \
                            - np.dot(np.dot(xi, transport_matrix), xj.T) \
                            - np.dot(np.dot(xj, transport_matrix.T), xi.T)
 
