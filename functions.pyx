@@ -333,6 +333,7 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
             topk_indices = ix[0:k, :]
             try:
                 logging.debug('ix.shape: %s' % str(ix.shape))
+                logging.debug(topk_indices)
                 logging.debug('topk_indices type: %s' % type(topk_indices))
             except Exception as e:
                 logging.error('Error in knn_fall_back logging')
