@@ -334,8 +334,10 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
             try:
                 logging.debug('ix.shape: %s' % ix.shape)
                 logging.debug('topk_indices type: %s' % type(topk_indices))
-            except Exception:
+            except Exception as e:
                 logging.error('Error in knn_fall_back logging')
+                logging.error(e)
+
             sam = y_train[topk_indices]
             [vote, count] = stats.mode(sam)
             vote = vote[0]
