@@ -271,7 +271,7 @@ def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
     cdef np.ndarray[np.double_t, ndim =1] z
     cdef int l, iteR
 
-    M = distance(np.dot(A, xi), np.dot(A, xj))
+    M = distance(np.dot(A, xi.T), np.dot(A, xj.T))
     M[M<0] = 0
     
     l = len(a)
