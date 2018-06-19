@@ -146,19 +146,15 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
             xj = r[5]
             d_a_tilde = r[6]
             d_b_tilde = r[7]
-            # d_a_tilde.shape = (np.size(d_a_tilde),)
-            # d_b_tilde.shape = (np.size(d_b_tilde),)
-
-            logging.debug('xi: %s, d_a_tilde: %s, xj: %s, d_b_tilde: %s, transport_matrix: %s' % (
-                str(xi.shape), str(d_a_tilde.shape), str(xj.shape), str(d_b_tilde.shape), str(transport_matrix.shape)
-            ))
 
             # gradient for metric
             # dD_{Aw} / dA
-            dD_dA_all[j] = np.dot(xi.T * d_a_tilde.T, xi) \
+            grad = np.dot(xi.T * d_a_tilde.T, xi) \
                            + np.dot(xj.T * d_b_tilde.T, xj) \
                            - np.dot(np.dot(xi.T, transport_matrix), xj) \
                            - np.dot(np.dot(xj.T, transport_matrix.T), xi)
+            assert sum(np.isnan(grad)) == 0, 'A grad is None, iter %s' % j
+            dD_dA_all[j] = grad
 
         # Compute NCA probabilities
         Di[Di < 0] = 0
@@ -169,17 +165,16 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
         p_a = sum(p_i[y_mask])  # probability for document d_a
         p_a = p_a + EPS  # to avoid division by 0
 
-        # Compute gradient wrt w and A
-        # logging.debug('\tComputing w and A gradients for batch')
+        # Compute gradient wrt w and sum A gradient
         dw_ii = np.zeros(np.size(w))
         dA_ii = np.zeros([dim, dim])
 
         for j in range(0, len(neighbors)):
-            # print('\tIter {}'.format(j))
             _, bow_j, ids_j, yj = neighbors[j]
 
             c_ij = p_i[j] / p_a * int(yj == yi) - p_i[j]
-            # ids_j.shape = ids_j.size
+            assert np.sum(np.isnan(c_ij)) == 0, j
+
             d_b_tilde = bow_j * w[ids_j]  # there was a transposition, but it should not be here (I suppose)
             d_b_tilde = d_b_tilde / sum(d_b_tilde)
             d_a_sum = sum(w[ids_i] * bow_i)
@@ -191,8 +186,12 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
 
             dw_ii[ids_i] = dw_ii[ids_i] + (c_ij * dwmd_dwi).squeeze(1)
             dw_ii[ids_j] = dw_ii[ids_j] + (c_ij * dwmd_dwj).squeeze(1)
+            assert np.sum(np.isnan(dw_ii[ids_i])), j
+            assert np.sum(np.isnan(dw_ii[ids_j])), j
 
-            dA_ii = dA_ii + c_ij * dD_dA_all[j]
+            assert np.sum(np.isnan(dA_ii)) == 0, j
+            assert np.sum(np.isnan(dD_dA_all[j])) == 0, j
+            dA_ii = dA_ii + c_ij * dD_dA_all[j], j
 
         if sum(np.isnan(dw_ii)) == 0 and sum(sum(np.isnan(dA_ii))) == 0:
             dw_ii.shape = [np.size(w), 1]
