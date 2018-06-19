@@ -113,7 +113,7 @@ class DataLoader:
 
     @property
     def labels(self):
-        return self._data['label'].tolist()
+        return self._data['label'].as_matrix()
 
     def reset_batch_pointer(self):
         self._batch_pointer = 0
