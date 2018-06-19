@@ -149,14 +149,14 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
 
             # gradient for metric
             # dD_{Aw} / dA
-            assert np.sum(np.isnan(r[0])) == 0
-            assert np.sum(np.isnan(r[1])) == 0
-            assert np.sum(np.isnan(r[2])) == 0
-            assert np.sum(np.isnan(r[3])) == 0
-            assert np.sum(np.isnan(r[4])) == 0
-            assert np.sum(np.isnan(r[5])) == 0
-            assert np.sum(np.isnan(r[6])) == 0
-            assert np.sum(np.isnan(r[7])) == 0
+            assert np.sum(np.isnan(r[0])) == 0, j
+            assert np.sum(np.isnan(r[1])) == 0, j
+            assert np.sum(np.isnan(r[2])) == 0, j
+            assert np.sum(np.isnan(r[3])) == 0, j
+            assert np.sum(np.isnan(r[4])) == 0, j
+            assert np.sum(np.isnan(r[5])) == 0, j
+            assert np.sum(np.isnan(r[6])) == 0, j
+            assert np.sum(np.isnan(r[7])) == 0, j
 
             grad = np.dot(xi.T * d_a_tilde.T, xi) \
                            + np.dot(xj.T * d_b_tilde.T, xj) \
