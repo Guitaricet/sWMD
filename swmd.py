@@ -217,7 +217,8 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
         wmd_dist[i, j] = r[3]
         n += 1
 
-    err = f.knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, [5])
+    # TODO: fix knn to support only one k
+    err = f.knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, [1, 3, 5])
 
     del wmd_dist
     gc.collect()

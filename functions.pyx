@@ -338,19 +338,7 @@ def knn_fall_back(DE, y_train, y_test, k_neighbors_list):
             not_sure = count < k / 2
             if np.sum(still_voting * not_sure) == 0:
                 uneq = still_voting != 0
-                try:
-                    logging.debug('uneq.shape: %s' % str(uneq.shape))
-                    logging.debug(uneq)
-                    logging.debug('vote.shape: %s' % str(vote.shape))
-                    logging.debug(vote)
-                except Exception as e:
-                    logging.error('Error in knn_fall_back logging')
-                    logging.error(e)
-
-                tmp_vote = vote[uneq]
-                predictions[k, uneq]
-
-                predictions[k, uneq] = tmp_vote
+                predictions[k, uneq] = vote[uneq]
                 if np.sum(predictions[k, :] == 0) != 0:
                     logging.error("unknown error in knn_fall_back")
                 break
