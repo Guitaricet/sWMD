@@ -52,6 +52,7 @@ class DataLoader:
     Yes, I know this is a terrible format, and I hope it will be changed in the future
     """
     def __init__(self, datapath, embeddings, batch_size, tokens_with_pos=False, lemmatize=True, frac=1.0):
+        # TODO: add max_dict_size parameter
         self.datapath = datapath
         self.batch_size = batch_size
         self.lemmatize = lemmatize
@@ -74,16 +75,19 @@ class DataLoader:
         self._default_token = '<UNK>'
         self._default_embedding = np.random.uniform(-1, 1, self._embeddings.vector_size)
 
-        # Note: speed up a bit, via tokenized sentences cashing?
         # make tok2idx and idx2tok:
         logging.info('Making tok2idx and idx2tok...')
+        tokenized_all = []
         self._tok2idx[self._default_token] = 0
         self._idx2tok.append(self._default_token)
         for _, row in self._data.iterrows():
-            for token in self._tokenize(row['text']):
+            tokenized = self._tokenize(row['text'])
+            tokenized_all.append(tokenized)
+            for token in tokenized:
                 if token not in self._tok2idx:
                     self._tok2idx[token] = len(self._tok2idx)
                     self._idx2tok.append(token)
+        self._data['tokens'] = tokenized_all
         logging.info('done')
 
         self._len = len(self._data)
@@ -96,7 +100,7 @@ class DataLoader:
     def __getitem__(self, i):
         data_row = self._data.iloc[i]
         label = int(data_row['label'])
-        X, bow, indices = self._preprocess(data_row['text'])
+        X, bow, indices = self._preprocess(data_row['tokens'])
         return X, bow, indices, label
 
     def __next__(self):
@@ -171,11 +175,11 @@ class DataLoader:
 
         return tokens
 
-    def _preprocess(self, text):
+    def _preprocess(self, tokens):
 
         bow_big = np.zeros(len(self._tok2idx))
 
-        for token in self._tokenize(text):
+        for token in tokens:
             if token in self._tok2idx:
                 bow_big[self._tok2idx[token]] += 1
             else:
@@ -199,7 +203,7 @@ class DataLoader:
                     x[pointer, :] = self._default_embedding
                     n_default_embeddings += 1
                 pointer += 1
-        
+
         if 2 * n_default_embeddings > n_unique_tokens:
             logging.warning('Too many default embeddings for text (more than a half of tokens)')
 

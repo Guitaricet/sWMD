@@ -34,7 +34,7 @@ import functions as f
 from datautils import DataLoader
 
 # TODO: make separate logger from the system one
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 
@@ -45,8 +45,8 @@ logging.basicConfig(level=logging.INFO,
 @click.option('--datapath-test', default=cfg.data.datapath_test)
 @click.option('--embeddings-path', default=cfg.data.embeddings_path)
 @click.option('--savefolder', default=cfg.data.savefolder)
-@click.option('--test-frac', default=1.0)
-def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefolder, test_frac):
+@click.option('--dataset-frac', default=1.0)
+def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefolder, dataset_frac):
     results_df = []
     savepath = os.path.join(
         savefolder,
@@ -59,9 +59,9 @@ def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefold
     embeddings = FastText.load_fasttext_format(embeddings_path)
 
     logging.info('Loading datasets...')
-    dataloader_train = DataLoader(datapath_train, embeddings, cfg.train.batch_size)
-    dataloader_val = DataLoader(datapath_val, embeddings, cfg.train.batch_size)
-    dataloader_test = DataLoader(datapath_test, embeddings, cfg.train.batch_size, frac=test_frac)
+    dataloader_train = DataLoader(datapath_train, embeddings, cfg.train.batch_size, frac=dataset_frac)
+    dataloader_val = DataLoader(datapath_val, embeddings, cfg.train.batch_size, frac=dataset_frac)
+    dataloader_test = DataLoader(datapath_test, embeddings, cfg.train.batch_size, frac=dataset_frac)
     logging.info('Datasets are loaded')
 
     if cfg.train.use_baseline:
@@ -176,7 +176,7 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
         prep_time = time()
         x_i, bow_i, indices_train_i, _ = dataloader_train[i]
         logging.info('Preprocessing time: %s' % (time() - prep_time))
-    
+
         bow_i.shape = [np.size(bow_i), 1]
         d_a = bow_i * w[indices_train_i]
         d_a = d_a / sum(d_a)
@@ -196,7 +196,6 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
             result.append(f.sinkhorn2(A, x_i, x_j, d_a, d_b))
             if j == 1:
                 logging.info('Metric calculation time: %s' % (time() - metric_time))
-            # print("n_train {} n_test {} is finished".format(i, j))
 
         logging.info('Inner cycle total time: %s' % (time() - inn_cycle_time))
 
@@ -212,7 +211,7 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
         wmd_dist[i, j] = r[3]
         n += 1
 
-    err = knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, [5])
+    err = f.knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, [5])
 
     del wmd_dist
     gc.collect()
