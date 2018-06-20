@@ -168,9 +168,11 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
     result = []
 
     logging.info('Train set size: %s' % n_train)
+    stats_list = []
     for i in range(0, n_train):
         if i % 100 == 0:
             logging.info('KNN iter %s' % i)
+            pd.DataFrame(stats_list).to_csv('stats_%s.csv' % int(start_time), index=False)
 
         Wi = np.zeros(n_test)
 
@@ -187,6 +189,7 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
             x_j, bow_j, indices_test_j, _ = dataloader_test[j]
             if j == 1:
                 logging.debug('Preprocessing time: %s' % (time() - prep_time))
+                prep_time = time() - prep_time
 
             premetric_time = time()
             bow_j.shape = [np.size(bow_j), 1]
@@ -195,6 +198,7 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
             d_b.shape = (np.size(d_b), 1)
             if j == 1:
                 logging.debug('Premetric time: %s' % (time() - premetric_time))
+                premetric_time = time() - premetric_time
 
             # result.append(pool.apply_async(sinkhorn2, (i, j, A, x_i, x_j, a, b)))
 
@@ -203,9 +207,11 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
             result.append(f.sinkhorn2(A, x_i, x_j, d_a, d_b))
             if j == 1:
                 logging.debug('Metric calculation time: %s' % (time() - metric_time))
+                metric_time = time() - metric_time
 
         logging.debug('Inner cycle total time: %s, n iters: %s' % ((time() - inn_cycle_time), len(n_test)))
-
+        inn_cycle_time = time() - inn_cycle_time
+        stats_list.append({'prep_time': prep_time, 'premetric_time': premetric_time, 'inn_cycle_time': inn_cycle_time})
     # pool.close()
     # pool.join()
 
