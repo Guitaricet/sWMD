@@ -204,7 +204,7 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
             if j == 1:
                 logging.debug('Metric calculation time: %s' % (time() - metric_time))
 
-        logging.debug('Inner cycle total time: %s' % (time() - inn_cycle_time))
+        logging.debug('Inner cycle total time: %s, n iters: %s' % ((time() - inn_cycle_time), len(n_test)))
 
     # pool.close()
     # pool.join()
