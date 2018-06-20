@@ -184,7 +184,7 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
             c_ij = p_i[j] / p_a * int(yj == yi) - p_i[j]
             assert np.sum(np.isnan(c_ij)) == 0, j
 
-            d_b_tilde = bow_j * w[ids_j]  # there was a transposition, but it should not be here (I suppose)
+            d_b_tilde = bow_j * w[ids_j]
             d_b_tilde = d_b_tilde / sum(d_b_tilde)
             d_a_sum = sum(w[ids_i] * bow_i)
             d_b_sum = sum(w[ids_j] * bow_j)
@@ -198,11 +198,11 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
             assert np.sum(np.isnan(dw_ii[ids_i])) == 0, j
             assert np.sum(np.isnan(dw_ii[ids_j])) == 0, j
 
-            assert np.sum(np.isnan(dA_ii)) == 0, j
+            assert np.sum(np.isnan(dA_ii)) == 0, (j, type(dA_ii), dA_ii)
             assert np.sum(np.isnan(dD_dA_all[j])) == 0, j
-            dA_ii = dA_ii + c_ij * dD_dA_all[j], j
+            dA_ii = dA_ii + c_ij * dD_dA_all[j]
 
-        if sum(np.isnan(dw_ii)) == 0 and sum(sum(np.isnan(dA_ii))) == 0:
+        if np.sum(np.isnan(dw_ii)) == 0 and np.sum(np.isnan(dA_ii)) == 0:
             dw_ii.shape = [np.size(w), 1]
             dw = dw + dw_ii
             dA_aux = dA_aux + dA_ii
