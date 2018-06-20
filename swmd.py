@@ -209,7 +209,7 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
                 logging.debug('Metric calculation time: %s' % (time() - metric_time))
                 metric_time = time() - metric_time
 
-        logging.debug('Inner cycle total time: %s, n iters: %s' % ((time() - inn_cycle_time), len(n_test)))
+        logging.debug('Inner cycle total time: %s, iters: %s' % ((time() - inn_cycle_time), n_test))
         inn_cycle_time = time() - inn_cycle_time
         stats_list.append({'prep_time': prep_time, 'premetric_time': premetric_time, 'inn_cycle_time': inn_cycle_time})
     # pool.close()
