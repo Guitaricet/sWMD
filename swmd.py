@@ -45,8 +45,9 @@ logging.basicConfig(level=logging.DEBUG,
 @click.option('--datapath-test', default=cfg.data.datapath_test)
 @click.option('--embeddings-path', default=cfg.data.embeddings_path)
 @click.option('--savefolder', default=cfg.data.savefolder)
+@click.option('--use-baseline', default=cfg.data.use_baseline)
 @click.option('--dataset-frac', default=1.0)
-def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefolder, dataset_frac):
+def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefolder, use_baseline, dataset_frac):
     results_df = []
     savepath = os.path.join(
         savefolder,
@@ -64,7 +65,7 @@ def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefold
     dataloader_test = DataLoader(datapath_test, embeddings, cfg.train.batch_size, frac=dataset_frac)
     logging.info('Datasets are loaded')
 
-    if cfg.train.use_baseline:
+    if use_baseline:
         logging.info('baseline WMD evaluation')
         evaluate_wmd(dataloader_train, dataloader_test, embeddings.vector_size)
 
