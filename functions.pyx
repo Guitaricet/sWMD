@@ -134,7 +134,7 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
         # pool.close()
         # pool.join()
 
-        Di = np.zeros([n_neighbours, 1])  # (squared??) sinkhorn distances - relaxed WMD distances
+        Di = np.zeros([len(neighbors), 1])  # (squared??) sinkhorn distances - relaxed WMD distances
         for j, res in enumerate(sinkhorn_results):
             # r = res.get()
             r = res
@@ -195,8 +195,8 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
 
             dw_ii[ids_i] = dw_ii[ids_i] + (c_ij * dwmd_dwi).squeeze(1)
             dw_ii[ids_j] = dw_ii[ids_j] + (c_ij * dwmd_dwj).squeeze(1)
-            assert np.sum(np.isnan(dw_ii[ids_i])), j
-            assert np.sum(np.isnan(dw_ii[ids_j])), j
+            assert np.sum(np.isnan(dw_ii[ids_i])) == 0, j
+            assert np.sum(np.isnan(dw_ii[ids_j])) == 0, j
 
             assert np.sum(np.isnan(dA_ii)) == 0, j
             assert np.sum(np.isnan(dD_dA_all[j])) == 0, j
@@ -290,43 +290,58 @@ def sinkhorn3(np.ndarray[np.double_t, ndim =2] A,
     cdef np.ndarray[np.double_t, ndim =1] z
     cdef int l, iteR
 
+    assert np.sum(np.isnan(A)) == 0
+    assert np.sum(np.isnan(xi)) == 0
+    assert np.sum(np.isnan(xj)) == 0
+    assert np.sum(np.isnan(a)) == 0
+    assert np.sum(np.isnan(b)) == 0
+
     M = distance(np.dot(A, xi.T), np.dot(A, xj.T))
     M[M<0] = 0
-    
+
     l = len(a)
     K = np.exp(-cfg.sinkhorn.lambda_ * M)
+    assert np.sum(np.isnan(K)) == 0, K
     Kt = K / a
+    assert np.sum(np.isnan(Kt)) == 0, Kt
     u = np.ones([l, 1]) / l
-    iteR = 0
     change = np.inf
     #b.shape = (np.size(b),1)
 
-    while change > cfg.sinkhorn.float_tol and iteR <= cfg.sinkhorn.max_iter:
-        iteR = iteR + 1
+    for _ in range(cfg.sinkhorn.max_iter):
         u0 = u
         # sinkhorn distance formula:
-        u = 1.0 / (np.dot(Kt, (b / (np.dot(K.T, u)))))
+        u = 1.0 / (np.dot(Kt, b / (np.dot(K.T, u) + EPS)) + EPS)
         change = np.linalg.norm(u - u0) / np.linalg.norm(u)
+        if change < cfg.sinkhorn.float_tol:
+            break
 
+    assert np.sum(np.isnan(u)) == 0, u
     if min(u) <= 0:
         u = u - min(u) + EPS
 
-    v = b / (np.dot(K.T, u))
+    v = b / (np.dot(K.T, u) + EPS)
 
+    assert np.sum(np.isnan(v)) == 0, v
     if min(v) <= 0:
         v = v - min(v) + EPS
 
+    assert np.sum(np.isnan(u)) == 0, u
     alpha = np.log(u)
-    alpha = 1.0 / cfg.sinkhorn.lambda_ * (alpha - np.mean(alpha))
+    assert np.sum(np.isnan(alpha)) == 0, alpha
+    alpha = 1.0 / cfg.sinkhorn.lambda_ * (alpha - np.mean(alpha) + EPS)
+    assert np.sum(np.isnan(alpha)) == 0, alpha
     beta = np.log(v)
-    beta = 1.0 / cfg.sinkhorn.lambda_ * (beta - np.mean(beta))
+    assert np.sum(np.isnan(beta)) == 0, beta
+    _beta = 1.0 / cfg.sinkhorn.lambda_ * (beta - np.mean(beta) + EPS)
+    assert np.sum(np.isnan(_beta)) == 0, (beta, np.mean(beta), beta - np.mean(beta) + EPS)
     # v.shape = (np.size(v),)
     z = v.T[0]
     T = z * (K * u)
     obj_primal = np.sum(T*M) # sum(sum(T*M))
     # obj_dual = a * alpha + b * beta
 
-    return alpha, beta, T, obj_primal, xi, xj, a, b
+    return alpha, _beta, T, obj_primal, xi, xj, a, b
 
 
 def knn_fall_back(DE, y_train, y_test, k_neighbors_list):

@@ -12,7 +12,7 @@ class train:
     lr_A = 1e+0
     w_min = 0.01
     w_max = 10
-    use_baseline = True
+    use_baseline = False
     hidden_dim = 32
 
 class data:
