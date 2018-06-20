@@ -45,7 +45,7 @@ logging.basicConfig(level=logging.DEBUG,
 @click.option('--datapath-test', default=cfg.data.datapath_test)
 @click.option('--embeddings-path', default=cfg.data.embeddings_path)
 @click.option('--savefolder', default=cfg.data.savefolder)
-@click.option('--use-baseline', default=cfg.data.use_baseline)
+@click.option('--use-baseline', default=cfg.train.use_baseline)
 @click.option('--dataset-frac', default=1.0)
 def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefolder, use_baseline, dataset_frac):
     results_df = []
