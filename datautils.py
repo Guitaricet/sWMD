@@ -171,8 +171,6 @@ class DataLoader:
         classes = self.classes
         for c in classes:
             class_indices = self._data[self._data['label'] == c].index
-            print(len(class_indices))
-            print(sample_size)
             n_samples = max(1, int(len(class_indices) * sample_size))
             class_sample = np.random.choice(class_indices, n_samples, replace=False)
             sample += list(class_sample)
