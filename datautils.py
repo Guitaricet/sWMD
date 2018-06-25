@@ -71,7 +71,7 @@ class DataLoader:
             raise ValueError('embeddings should be either path to fastttext model or gensim.models.FastText binary file')
 
         self._m = Mystem()
-        self._data = pd.read_csv(datapath, sep='\t', names=['text', 'label'])
+        self._data = pd.read_csv(datapath, sep='\t', names=['text', 'label'], index_col=False)
         if 0 < frac < 1.0:
             self._data = self._data.sample(int(len(self._data) * frac))
 
