@@ -40,8 +40,14 @@ def distance(np.ndarray[np.double_t, ndim=2] X, np.ndarray[np.double_t, ndim=2] 
     cdef int D, d
     cdef np.ndarray[np.double_t, ndim =2] dist
 
-    D = np.size(X[:,0])
-    d = np.size(x[:,0])
+    try:
+        D = np.size(X[:,0])
+        d = np.size(x[:,0])
+    except IndexError as e:
+        print(X)
+        print('\n')
+        print(x)
+
     if D != d:
         logging.error('Both sets of vectors must have same dimensionality!')
         os._exit()
@@ -79,11 +85,7 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
     batch_indices = random.sample(range(n_train), batch_size)
 
     # Euclidean distances between document centers (???)
-    try:
-        D_c = distance(np.dot(A, document_centers), np.dot(A, document_centers))
-    except Exception as e:
-        print(np.dot(A, document_centers))
-        raise e
+    D_c = distance(np.dot(A, document_centers), np.dot(A, document_centers))
     tr_loss = 0
     n_nan = 0
 
