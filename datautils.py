@@ -39,19 +39,22 @@ class DataLoader:
     """
     Iterator
 
-    :param datapath: path to data.csv
-    :param embeddings: path to fasttesxt binary embeddings file or gensim.models.FastText binary file
-    :param batch_size: int, batch size
-    :param tokens_with_pos: adds POS-tag to tokens
-    :getitem returns: tuple (X, BOW, indices, label) where
-        X — numpy array of word embeddings with shape (text_len, embed_dim) where text_len may vary
-        BOW - numpy array of word counts with size (n_unique_tokens,)
-        ids - numpy array of word indices with size (n_unique_tokens,)
-        label - int, class index
-    :iterator returns: list of getitem objects with size = batch_size
-    BOW and ids are weekly related with each other
+    Args:
+        datapath: path to data.csv
+        embeddings: path to fasttesxt binary embeddings file or gensim.models.FastText binary file
+        batch_size: int, batch size
+        tokens_with_pos: adds POS-tag to tokens
 
-    Yes, I know this is a terrible format, and I hope it will be changed in the future
+    Returns:
+        getitem(): tuple (X, BOW, indices, label) where
+            X — numpy array of word embeddings with shape (text_len, embed_dim) where text_len may vary
+            BOW - numpy array of word counts with size (n_unique_tokens,)
+            ids - numpy array of word indices with size (n_unique_tokens,)
+            label - int, class index
+            BOW and ids are loosely linked with each other
+        iter(): list of getitem objects with size = batch_size
+   
+    Yes, this is a terrible return format, and I hope it will be changed in the future
     """
     def __init__(self, datapath, embeddings, batch_size, tokens_with_pos=False, lemmatize=True, frac=1.0):
         # TODO: add max_dict_size parameter
@@ -96,6 +99,8 @@ class DataLoader:
         self._n_batches = self._len // batch_size + int(self._len % batch_size > 0)
         self._batch_pointer = 0
 
+        self._classes = None
+
     def __len__(self):
         return self._len
 
@@ -116,6 +121,15 @@ class DataLoader:
     @property
     def labels(self):
         return self._data['label'].as_matrix()
+    
+    @property
+    def classes(self):
+        """
+        List of unique classes in the data
+        """
+        if self._classes is None:
+            self._classes = self._data['label'].unique()
+        return self._classes
 
     def reset_batch_pointer(self):
         self._batch_pointer = 0
@@ -128,13 +142,39 @@ class DataLoader:
 
     def get_random_batch(self, batch_size=None):
         """
-        Return random batch with the structure identical to iterator result
-        :param batch_size: optional, if not indicated, uses self.batch_size
+        Get random batch with the structure identical to iterator result
+
+        Args:
+            batch_size: optional, if not indicated, uses self.batch_size
         """
         if batch_size is None:
             batch_size = self.batch_size
         ids = random.sample(range(self.__len__()), batch_size)
         return self.batch_for_indices(ids)
+    
+    def sample(self, sample_size):
+        """
+        Safe indices sampling, guarantees that all classes will be presented in the sample
+
+        Args:
+            sample_size: fraction of the whole dataset (0. < sample_size <= 1.)
+        
+        Returns:
+            list of indices of the sample
+        """
+        assert 0 < sample_size <= 1
+        if sample_size == 0:
+            return list(range(self.__len__()))
+        
+        sample = []
+        classes = self.classes
+        for c in classes:
+            class_indices = self._data[self._data['label'] == c].index
+            n_samples = max(1, int(len(class_indices) * sample_size))
+            class_sample = np.random.choise(class_indices, n_samples, replace=False)
+            sample += list(class_sample)
+        np.random.shuffle(sample)
+        return sample
 
     def _make_batch(self, _batch_start):
         batch = []

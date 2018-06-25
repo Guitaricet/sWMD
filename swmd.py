@@ -34,10 +34,11 @@ import functions as f
 from datautils import DataLoader
 
 # TODO: make separate logger from the system one
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 
+script_start_time = time()
 
 @click.command()
 @click.option('--datapath-train', default=cfg.data.datapath_train)
@@ -59,7 +60,8 @@ def train(datapath_train,
     results_df = []
     savepath = os.path.join(
         savefolder,
-        'lambda{}_lrw{}_lrA{}_maxiter{}_batch{}_nn{}.csv'.format(
+        '{}_lambda{}_lrw{}_lrA{}_maxiter{}_batch{}_nn{}.csv'.format(
+            script_start_time,
             cfg.sinkhorn.lambda_, int(cfg.train.lr_w), int(cfg.train.lr_A),
             cfg.train.max_iter, cfg.train.batch_size, cfg.train.n_neighbors
         )
@@ -96,7 +98,7 @@ def train(datapath_train,
 
     logging.info('Starting main optimisation loop')
     for i in range(cfg.train.max_iter):
-        logging.info('Iter: {}'.format(i))
+        logging.info('SGD iter: {}'.format(i))
         [dw, dA] = f.grad_swmd(dataloader_train,
                                x_train_centers,
                                w,
@@ -115,11 +117,11 @@ def train(datapath_train,
         if i % cfg.train.save_freq == 0:
             # Compute loss
             logging.info('KNN train')
-            loss_train = knn_swmd(dataloader_train, dataloader_train, w, A)
+            loss_train = knn_swmd(dataloader_train, dataloader_train, w, A, knn_sample_size)
             logging.info('Train knn err: %s' % loss_train)
 
             logging.info('KNN valid')
-            loss_valid = knn_swmd(dataloader_train, dataloader_val, w, A)
+            loss_valid = knn_swmd(dataloader_train, dataloader_val, w, A, knn_sample_size)
 
             logging.info('Valid knn err: %s' % loss_valid)
 
@@ -130,11 +132,11 @@ def train(datapath_train,
         gc.collect()
 
     logging.info('KNN test')
-    loss_test = knn_swmd(dataloader_train, dataloader_test, w, A)
+    loss_test = knn_swmd(dataloader_train, dataloader_test, w, A, knn_sample_size)
     logging.info('Test knn err: %s' % loss_test)
 
 
-def evaluate_wmd(dataloader_train, dataloader_test, embed_dim):
+def evaluate_wmd(dataloader_train, dataloader_test, embed_dim, knn_sample_size=cfg.train.knn_sample_size):
     """
     Standard (non-supervised) WMD evaluation
     Used as a baseline
@@ -148,7 +150,8 @@ def evaluate_wmd(dataloader_train, dataloader_test, embed_dim):
     loss_test = knn_swmd(dataloader_train,
                          dataloader_test,
                          w_baseline,
-                         A_baseline)
+                         A_baseline,
+                         knn_sample_size)
 
     logging.info('Test error per knn: %s' % loss_test)
     logging.info('Test mean error:    %s' % np.mean(loss_test))
@@ -156,15 +159,23 @@ def evaluate_wmd(dataloader_train, dataloader_test, embed_dim):
     return loss_test
 
 
-def knn_swmd(dataloader_train, dataloader_test, w, A):
+def knn_swmd(dataloader_train,
+             dataloader_test,
+             w,
+             A,
+             train_sample=cfg.train.knn_sample_size):
     """
     Computes KNN
     Not time and memory efficient, because computes full distance matrix
 
-    :param A, w: model parameters
-    :return: KNN error rate
+    Args:
+        A, w: model parameters
+        train_sample: trainset sample size for nearest neighbors (0 < train_sample <= 1)
+    Returns:
+        KNN error rate
     """
-    start_time = time()
+
+    knn_start_time = time()
 
     n_train = len(dataloader_train)
     n_test = len(dataloader_test)
@@ -181,8 +192,8 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
 
     for j in range(n_test):
         if j % 100 == 0:
-            logging.info('KNN iter %s' % j)
-            pd.DataFrame(stats_list).to_csv('stats_%s.csv' % int(start_time), index=False)
+            # logging.info('KNN iter: %s' % j)
+            pd.DataFrame(stats_list).to_csv('stats_%s.csv' % int(knn_start_time), index=False)
 
         prep_time = time()
         x_j, bow_j, indices_test_j, _ = dataloader_test[j]
@@ -192,8 +203,7 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
         d_b = bow_j.reshape(-1, 1) * w[indices_test_j][0]
         d_b = d_b / sum(d_b)
 
-        n_train_sample = int(n_test * cfg.train.knn_sample_size)
-        train_sample = np.random.choice(range(n_train), n_train_sample, replace=False)
+        train_sample = dataloader_train.sample(train_sample)
         trainset_cycle_time = time()
         for i in train_sample:
             x_i, bow_i, indices_train_i, _ = dataloader_train[i]
