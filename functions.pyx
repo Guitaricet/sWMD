@@ -37,14 +37,13 @@ def distance(np.ndarray[np.double_t, ndim=2] X, np.ndarray[np.double_t, ndim=2] 
     # computes the pairwise squared distance matrix
     # between any column vectors in X and in x
 
-    cdef int D, d
-    cdef np.ndarray[np.double_t, ndim =2] dist
-
-    if X.shape != x.shape:
-        print('Both sets of vectors must have same dimensionality!')
-        print(X.shape)
-        print(x.shape)
-        assert False
+    # cdef int D, d
+    # cdef np.ndarray[np.double_t, ndim =2] dist
+    # if X.shape != x.shape:
+    #     print('Both sets of vectors must have same dimensionality!')
+    #     print(X.shape)
+    #     print(x.shape)
+    #     assert False
     dist = sdist.cdist(X.T, x.T, 'sqeuclidean')
 
     return dist
