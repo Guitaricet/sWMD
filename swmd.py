@@ -206,7 +206,8 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
             # result.append(pool.apply_async(sinkhorn2, (i, j, A, x_i, x_j, a, b)))
             # WARNING! sinkhorn2 and sinkhorn3 have different sets of return parameters
 
-            wmd_dist[j, i] = f.sinkhorn2(A, x_i, x_j, d_a, d_b)
+            res = f.sinkhorn2(A, x_i, x_j, d_a, d_b)
+            wmd_dist[j, i] = res[3]
             if i == 0:
                 logging.debug('Metric calculation time: %s' % (time() - metric_time))
                 metric_time = time() - metric_time
