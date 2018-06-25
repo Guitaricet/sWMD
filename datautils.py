@@ -74,6 +74,7 @@ class DataLoader:
         self._data = pd.read_csv(datapath, sep='\t', names=['text', 'label'], index_col=False)
         if 0 < frac < 1.0:
             self._data = self._data.sample(int(len(self._data) * frac))
+            self._data.reset_index(inplace=True, drop=True)
 
         self._tok2idx = dict()
         self._idx2tok = []

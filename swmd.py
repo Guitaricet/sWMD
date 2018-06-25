@@ -206,11 +206,8 @@ def knn_swmd(dataloader_train,
         train_sample = dataloader_train.sample(train_sample)
         trainset_cycle_time = time()
         for i in train_sample:
-            try:
-                x_i, bow_i, indices_train_i, _ = dataloader_train[i]
-            except IndexError as e:
-                print(i)
-                raise e
+
+            x_i, bow_i, indices_train_i, _ = dataloader_train[i]
 
             d_a = bow_i.reshape(-1, 1) * w[indices_train_i]
             d_a /= sum(d_a)
