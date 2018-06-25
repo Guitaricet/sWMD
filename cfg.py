@@ -14,6 +14,7 @@ class train:
     w_max = 10
     use_baseline = False
     hidden_dim = 32
+    knn_sample_size = 0.01
 
 class data:
     datapath_train = '/Users/vlyalin/Downloads/SBER_FAQ/sber_faq_train.csv'

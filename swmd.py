@@ -46,8 +46,16 @@ logging.basicConfig(level=logging.DEBUG,
 @click.option('--embeddings-path', default=cfg.data.embeddings_path)
 @click.option('--savefolder', default=cfg.data.savefolder)
 @click.option('--use-baseline', default=cfg.train.use_baseline)
+@click.option('--knn-sample-size', default=cfg.train.knn_sample_size)
 @click.option('--dataset-frac', default=1.0)
-def train(datapath_train, datapath_val, datapath_test, embeddings_path, savefolder, use_baseline, dataset_frac):
+def train(datapath_train,
+          datapath_val,
+          datapath_test,
+          embeddings_path,
+          savefolder,
+          use_baseline,
+          knn_sample_size,
+          dataset_frac):
     results_df = []
     savepath = os.path.join(
         savefolder,
@@ -161,7 +169,8 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
     n_train = len(dataloader_train)
     n_test = len(dataloader_test)
 
-    wmd_dist = np.zeros([n_train, n_test])
+    # is inf really OK?
+    wmd_dist = np.full([n_test, n_train], np.float32('inf'))
 
     # TODO: fix multiprocessing
     # pool = mul.Pool(processes = 6)
@@ -169,61 +178,53 @@ def knn_swmd(dataloader_train, dataloader_test, w, A):
 
     logging.info('Train set size: %s' % n_train)
     stats_list = []
-    for i in range(0, n_train):
-        if i % 100 == 0:
-            logging.info('KNN iter %s' % i)
+
+    for j in range(n_test):
+        if j % 100 == 0:
+            logging.info('KNN iter %s' % j)
             pd.DataFrame(stats_list).to_csv('stats_%s.csv' % int(start_time), index=False)
 
-        Wi = np.zeros(n_test)
+        prep_time = time()
+        x_j, bow_j, indices_test_j, _ = dataloader_test[j]
+        logging.debug('Preprocessing time: %s' % (time() - prep_time))
+        prep_time = time() - prep_time
 
-        x_i, bow_i, indices_train_i, _ = dataloader_train[i]
+        d_b = bow_j.reshape(-1, 1) * w[indices_test_j][0]
+        d_b = d_b / sum(d_b)
 
-        bow_i.shape = [np.size(bow_i), 1]
-        d_a = bow_i * w[indices_train_i]
-        d_a = d_a / sum(d_a)
+        n_train_sample = int(n_test * cfg.train.knn_sample_size)
+        train_sample = np.random.choice(range(n_train), n_train_sample, replace=False)
+        trainset_cycle_time = time()
+        for i in train_sample:
+            x_i, bow_i, indices_train_i, _ = dataloader_train[i]
 
-        inn_cycle_time = time()
-        for j in range(0, n_test):
+            d_a = bow_i.reshape(-1, 1) * w[indices_train_i]
+            d_a /= sum(d_a)
 
-            prep_time = time()
-            x_j, bow_j, indices_test_j, _ = dataloader_test[j]
-            if j == 1:
-                logging.debug('Preprocessing time: %s' % (time() - prep_time))
-                prep_time = time() - prep_time
-
-            premetric_time = time()
-            bow_j.shape = [np.size(bow_j), 1]
-            d_b = bow_j * w[indices_test_j][0]
-            d_b = d_b / sum(d_b)
-            d_b.shape = (np.size(d_b), 1)
-            if j == 1:
-                logging.debug('Premetric time: %s' % (time() - premetric_time))
-                premetric_time = time() - premetric_time
+            metric_time = time()
 
             # result.append(pool.apply_async(sinkhorn2, (i, j, A, x_i, x_j, a, b)))
-
             # WARNING! sinkhorn2 and sinkhorn3 have different sets of return parameters
-            metric_time = time()
-            result.append(f.sinkhorn2(A, x_i, x_j, d_a, d_b))
-            if j == 1:
+
+            wmd_dist[j, i] = f.sinkhorn2(A, x_i, x_j, d_a, d_b)
+            if i == 0:
                 logging.debug('Metric calculation time: %s' % (time() - metric_time))
                 metric_time = time() - metric_time
+        
+        logging.debug('Inner cycle total time: %s, iters: %s' % ((time() - trainset_cycle_time), n_test))
+        trainset_cycle_time = time() - trainset_cycle_time
+        stats_list.append({'prep_time': prep_time, 'trainset_cycle_time': trainset_cycle_time})
 
-        logging.debug('Inner cycle total time: %s, iters: %s' % ((time() - inn_cycle_time), n_test))
-        inn_cycle_time = time() - inn_cycle_time
-        stats_list.append({'prep_time': prep_time, 'premetric_time': premetric_time, 'inn_cycle_time': inn_cycle_time})
     # pool.close()
     # pool.join()
+    # for n, res in enumerate(result):
+    #     # r = res.get()
+    #     r = res
+    #     i = n // n_test
+    #     j = np.mod(n, n_test)
+    #     wmd_dist[i, j] = r[3]
 
-    n = 0
-    for res in result:
-        # r = res.get()
-        r = res
-        i = n // n_test
-        j = np.mod(n, n_test)
-        wmd_dist[i, j] = r[3]
-        n += 1
-
+    wmd_dist = wmd_dist.T
     err = f.knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, [5])
 
     del wmd_dist

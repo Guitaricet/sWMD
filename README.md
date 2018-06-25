@@ -4,7 +4,7 @@
 
 ### Introduction
 
-An efficient technique to learn a supervised metric, which we call the Supervised WMD (S-WMD) metric. To see the details, please refer http://papers.nips.cc/paper/6139-graph-clustering-block-models-and-model-free-results.pdf
+An efficient technique to learn a Supervised WMD (S-WMD) metric. To see the details, please refer http://papers.nips.cc/paper/6139-graph-clustering-block-models-and-model-free-results.pdf
 
 
 
@@ -15,9 +15,8 @@ pip install -r requirements.txt
 
 
 ### Usage
-Download the fold "dataset" from https://github.com/gaohuang/S-WMD.  
 
-Make sure that all the files and documents in a same directory. First compile the code by:
+First compile the code by:
 
 ```python
 >>> python setup.py build_ext --inplace
