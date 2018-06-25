@@ -82,7 +82,7 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
     try:
         D_c = distance(np.dot(A, document_centers), np.dot(A, document_centers))
     except Exception as e:
-        print(np.dor(A, document_centers))
+        print(np.dot(A, document_centers))
         raise e
     tr_loss = 0
     n_nan = 0
