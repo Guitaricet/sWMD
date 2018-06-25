@@ -229,6 +229,7 @@ class DataLoader:
                 bow_big[self._tok2idx[self._default_token]] += 1
 
         n_unique_tokens = sum(bow_big > 0)
+        assert n_unique_tokens > 0
         x = np.zeros([n_unique_tokens, self._embeddings.vector_size])
         bow_small = np.zeros(n_unique_tokens)
         indices = np.zeros(n_unique_tokens, dtype=np.int32)
@@ -250,4 +251,5 @@ class DataLoader:
         if 2 * n_default_embeddings > n_unique_tokens:
             logging.warning('Too many default embeddings for text (more than a half of tokens)')
 
+        assert x.shape[0] > 0
         return x, bow_small, indices
