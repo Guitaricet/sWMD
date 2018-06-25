@@ -163,14 +163,14 @@ def knn_swmd(dataloader_train,
              dataloader_test,
              w,
              A,
-             train_sample=cfg.train.knn_sample_size):
+             train_sample_size=cfg.train.knn_sample_size):
     """
     Computes KNN
     Not time and memory efficient, because computes full distance matrix
 
     Args:
         A, w: model parameters
-        train_sample: trainset sample size for nearest neighbors (0 < train_sample <= 1)
+        train_sample_size: trainset sample size for nearest neighbors (0 < train_sample <= 1)
     Returns:
         KNN error rate
     """
@@ -203,7 +203,7 @@ def knn_swmd(dataloader_train,
         d_b = bow_j.reshape(-1, 1) * w[indices_test_j][0]
         d_b = d_b / sum(d_b)
 
-        train_sample = dataloader_train.sample(train_sample)
+        train_sample = dataloader_train.sample(train_sample_size)
         trainset_cycle_time = time()
         for i in train_sample:
 

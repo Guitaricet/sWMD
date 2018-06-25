@@ -164,9 +164,9 @@ class DataLoader:
             list of indices of the sample
         """
         assert 0 < sample_size <= 1
-        if sample_size == 0:
+        if sample_size == 1:
             return list(range(self.__len__()))
-        
+
         sample = []
         classes = self.classes
         for c in classes:
