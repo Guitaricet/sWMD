@@ -33,7 +33,7 @@ logging.basicConfig(level=logging.INFO,
 EPS = 1e-10
 
 
-def distance(np.ndarray[np.double_t, ndim =2] X, np.ndarray[np.double_t, ndim =2] x):
+def distance(np.ndarray[np.double_t, ndim=2] X, np.ndarray[np.double_t, ndim=2] x):
     # computes the pairwise squared distance matrix
     # between any column vectors in X and in x
 
@@ -78,8 +78,12 @@ def grad_swmd(dataloader, document_centers, w, A, batch_size, n_neighbours):
     # Sample documents
     batch_indices = random.sample(range(n_train), batch_size)
 
-    # Euclidean distances between document centers
-    D_c = distance(np.dot(A, document_centers), np.dot(A, document_centers))
+    # Euclidean distances between document centers (???)
+    try:
+        D_c = distance(np.dot(A, document_centers), np.dot(A, document_centers))
+    except Exception as e:
+        print(np.dor(A, document_centers))
+        raise e
     tr_loss = 0
     n_nan = 0
 
