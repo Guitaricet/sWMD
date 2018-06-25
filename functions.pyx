@@ -40,7 +40,11 @@ def distance(np.ndarray[np.double_t, ndim=2] X, np.ndarray[np.double_t, ndim=2] 
     cdef int D, d
     cdef np.ndarray[np.double_t, ndim =2] dist
 
-    assert X.shape == x.shape, 'Both sets of vectors must have same dimensionality, but %s != %s' % (X.shape, x.shape)
+    if X.shape != x.shape:
+        print('Both sets of vectors must have same dimensionality!')
+        print(X.shape)
+        print(x.shape)
+        assert False
     dist = sdist.cdist(X.T, x.T, 'sqeuclidean')
 
     return dist
