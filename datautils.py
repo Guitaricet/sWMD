@@ -92,7 +92,7 @@ class DataLoader:
             tokenized_all.append(tokenized)
             for token in tokenized:
                 if token not in self._tok2idx:
-                    if len(self._tok2idx >= cfg.data.max_dict_size):
+                    if len(self._tok2idx) >= cfg.data.max_dict_size:
                         continue
                     self._tok2idx[token] = len(self._tok2idx)
                     self._idx2tok.append(token)
