@@ -67,6 +67,7 @@ def train(datapath_train,
         lr_a = 10 ** random.randint(-3, 2)
         lr_w = 10 ** random.randint(-3, 2)
         knn_sample_size *= random.uniform(0.1, 10)
+        logging.info('lr_a = {}, lr_w = {}, knn_sample_size = {}'.format(lr_a, lr_w, knn_sample_size))
     else:
         lr_a = cfg.train.lr_A
         lr_w = cfg.train.lr_w
