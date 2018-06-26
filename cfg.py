@@ -4,7 +4,7 @@ class sinkhorn:
     float_tol = 1e-3
 
 class train:
-    save_freq = 10
+    save_freq = 20
     max_iter = 100
     batch_size = 32
     n_neighbors = 200
@@ -15,6 +15,7 @@ class train:
     use_baseline = False
     hidden_dim = 32
     knn_sample_size = 0.01
+    ks = [1, 3, 5, 7, 15, 25]
 
 class data:
     datapath_train = '/Users/vlyalin/Downloads/SBER_FAQ/sber_faq_train.csv'

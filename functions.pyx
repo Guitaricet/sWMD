@@ -243,7 +243,7 @@ def sinkhorn2(np.ndarray[np.double_t, ndim =2] A,
     M[M<0] = 0
     
     l = len(a)
-    K = np.exp(-cfg.sinkhorn.lambda_ * M)
+    K = np.exp(-cfg.sinkhorn.lambda_ * M + EPS)
     Kt = K / a
     u = np.ones([l,1]) /l
     iteR = 0

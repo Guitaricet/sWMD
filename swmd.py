@@ -49,6 +49,8 @@ script_start_time = time()
 @click.option('--use-baseline', default=cfg.train.use_baseline)
 @click.option('--knn-sample-size', default=cfg.train.knn_sample_size)
 @click.option('--dataset-frac', default=1.0)
+@click.option('--results-prefix', default='')
+@click.option('--use-random-hyperparameters', default=False)
 def train(datapath_train,
           datapath_val,
           datapath_test,
@@ -56,13 +58,25 @@ def train(datapath_train,
           savefolder,
           use_baseline,
           knn_sample_size,
-          dataset_frac):
+          dataset_frac,
+          results_prefix,
+          use_random_hyperparameters):
+
+    # For hyperparameter search
+    if use_random_hyperparameters:
+        lr_a = 10 ** random.randint(-3, 2)
+        lr_w = 10 ** random.randint(-3, 2)
+        knn_sample_size *= random.uniform(0.1, 10)
+    else:
+        lr_a = cfg.train.lr_A
+        lr_w = cfg.train.lr_w
+
     results_df = []
     savepath = os.path.join(
         savefolder,
-        '{}_lambda{}_lrw{}_lrA{}_maxiter{}_batch{}_nn{}.csv'.format(
-            script_start_time,
-            cfg.sinkhorn.lambda_, int(cfg.train.lr_w), int(cfg.train.lr_A),
+        '{}_{}_lambda{}_lrw{}_lrA{}_maxiter{}_batch{}_nn{}.csv'.format(
+            results_prefix, script_start_time,
+            cfg.sinkhorn.lambda_, int(lr_w), int(lr_a),
             cfg.train.max_iter, cfg.train.batch_size, cfg.train.n_neighbors
         )
     )
@@ -77,7 +91,11 @@ def train(datapath_train,
 
     if use_baseline:
         logging.info('baseline WMD evaluation')
-        evaluate_wmd(dataloader_train, dataloader_test, embeddings.vector_size)
+        error = evaluate_wmd(dataloader_train, dataloader_test, embeddings.vector_size)
+
+        pd.DataFrame([{'baseline_error_rate': error}]).to_csv(
+            os.path.join(savefolder, '{}_baseline.csv'.format(results_prefix))
+        )
 
     # Compute document center (mean word vector of each document)
     logging.info('Computing document centers...')
@@ -108,32 +126,33 @@ def train(datapath_train,
         logging.debug('Gradients are computed')
 
         # Update w and A
-        w -= cfg.train.lr_w * dw
+        w -= lr_w * dw
         w[w < cfg.train.w_min] = cfg.train.w_min
         w[w > cfg.train.w_max] = cfg.train.w_max
 
-        A -= cfg.train.lr_A * dA
+        A -= lr_a * dA
 
-        if i % cfg.train.save_freq == 0:
-            # Compute loss
+        if i % cfg.train.save_freq == 0 or i == cfg.train.max_iter:
+            # Compute error rate
             logging.info('KNN train')
-            loss_train = knn_swmd(dataloader_train, dataloader_train, w, A, knn_sample_size)
-            logging.info('Train knn err: %s' % loss_train)
+            error_train = knn_swmd(dataloader_train, dataloader_train, w, A, knn_sample_size)
+            logging.info('Train knn err: %s' % error_train)
 
             logging.info('KNN valid')
-            loss_valid = knn_swmd(dataloader_train, dataloader_val, w, A, knn_sample_size)
+            error_valid = knn_swmd(dataloader_train, dataloader_val, w, A, knn_sample_size)
 
-            logging.info('Valid knn err: %s' % loss_valid)
+            logging.info('Valid knn err: %s' % error_valid)
 
-            results_df.append({'step': i, 'err_train': np.mean(loss_train), 'err_valid': np.mean(loss_valid)})
+            results_df.append({'step': i, 'err_train': error_train, 'err_valid': error_valid, 'knn_sample_size': knn_sample_size})
             pd.DataFrame(results_df).to_csv(savepath)
 
         del dw, dA
         gc.collect()
 
     logging.info('KNN test')
-    loss_test = knn_swmd(dataloader_train, dataloader_test, w, A, knn_sample_size)
-    logging.info('Test knn err: %s' % loss_test)
+    error_test = knn_swmd(dataloader_train, dataloader_test, w, A, knn_sample_size)
+    results_df.append({'step': cfg.train.max_iter, 'err_train': [], 'err_valid': error_test, 'knn_sample_size': knn_sample_size})
+    logging.info('Test knn err: %s' % error_test)
 
 
 def evaluate_wmd(dataloader_train, dataloader_test, embed_dim, knn_sample_size=cfg.train.knn_sample_size):
@@ -163,17 +182,21 @@ def knn_swmd(dataloader_train,
              dataloader_test,
              w,
              A,
-             train_sample_size=cfg.train.knn_sample_size):
+             train_sample_size=cfg.train.knn_sample_size,
+             ks=None):
     """
     Computes KNN
     Not time and memory efficient, because computes full distance matrix
 
     Args:
         A, w: model parameters
+        ks: list of numbers of neighbors if None cfg.train.ks is used
         train_sample_size: trainset sample size for nearest neighbors (0 < train_sample <= 1)
     Returns:
         KNN error rate
     """
+    if ks is None:
+        ks = cfg.train.ks
 
     knn_start_time = time()
 
@@ -237,7 +260,7 @@ def knn_swmd(dataloader_train,
     #     wmd_dist[i, j] = r[3]
 
     wmd_dist = wmd_dist.T
-    err = f.knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, [5])
+    err = f.knn_fall_back(wmd_dist, dataloader_train.labels, dataloader_test.labels, ks)
 
     del wmd_dist
     gc.collect()
