@@ -7,6 +7,7 @@ import pandas as pd
 from gensim.models.fasttext import FastText
 from pymystem3 import Mystem
 
+import cfg
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
@@ -91,8 +92,11 @@ class DataLoader:
             tokenized_all.append(tokenized)
             for token in tokenized:
                 if token not in self._tok2idx:
+                    if len(self._tok2idx >= cfg.data.max_dict_size):
+                        continue
                     self._tok2idx[token] = len(self._tok2idx)
                     self._idx2tok.append(token)
+        assert len(self._tok2idx) <= cfg.data.max_dict_size
         self._data['tokens'] = tokenized_all
         logging.info('done')
 
@@ -121,8 +125,8 @@ class DataLoader:
 
     @property
     def labels(self):
-        return self._data['label'].as_matrix()
-    
+        return self._data['label'].values
+
     @property
     def classes(self):
         """
